@@ -216,7 +216,13 @@ function setView(view) {
 
 els.pickFile.addEventListener("click", () => els.fileInput.click());
 els.replaceImage.addEventListener("click", () => els.fileInput.click());
-els.fileInput.addEventListener("change", () => loadFile(els.fileInput.files[0]));
+els.fileInput.addEventListener("change", () => {
+  const file = els.fileInput.files[0];
+  // Clear so picking the same file again still fires a change event
+  // (e.g. after editing it externally).
+  els.fileInput.value = "";
+  loadFile(file);
+});
 
 // Body-level handlers cover the dropzone too (events bubble), so a drop
 // anywhere on the page works in both empty and workspace states.
@@ -224,7 +230,11 @@ document.body.addEventListener("dragover", (e) => {
   e.preventDefault();
   els.dropzone.classList.add("dragover");
 });
-document.body.addEventListener("dragleave", () => els.dropzone.classList.remove("dragover"));
+document.body.addEventListener("dragleave", (e) => {
+  // Only when the drag leaves the page; moving over child nodes also
+  // fires dragleave and would flicker the highlight.
+  if (!e.relatedTarget) els.dropzone.classList.remove("dragover");
+});
 document.body.addEventListener("drop", (e) => {
   e.preventDefault();
   els.dropzone.classList.remove("dragover");
