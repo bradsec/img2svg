@@ -163,6 +163,11 @@ test("assertRasterBudget passes typical sizes, rejects oversize", () => {
   assert.throws(() => assertRasterBudget(8000, 8001, 1), /Lower the upscale/);
 });
 
+test("logo preset resolves to 2 colors", () => {
+  const s = resolveSettings("logo", {});
+  assert.deepEqual([s.colors, s.speckle, s.layerDiff], [2, 16, 48]);
+});
+
 test("resolveSettings: explicit beats preset beats defaults", () => {
   const s = resolveSettings("tshirt", { colors: 8 });
   assert.equal(s.colors, 8); // explicit wins

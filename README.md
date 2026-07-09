@@ -1,8 +1,6 @@
-# img2svg
+# img2svg web app
 
-Convert raster images to clean, scalable SVG vectors entirely in your browser. [vtracer](https://github.com/visioncortex/vtracer) compiled to WebAssembly plus a Canvas/JS preprocessing stage. Images never leave your machine: no upload, no backend.
-
-**Live app: https://bradsec.github.io/img2svg/**
+Browser-based raster to SVG converter. Same pipeline as the Python CLI in the repository root, running entirely client-side: [vtracer](https://github.com/visioncortex/vtracer) compiled to WebAssembly plus a Canvas/JS preprocessing stage. Images never leave the machine.
 
 ## Features
 
@@ -12,7 +10,7 @@ Convert raster images to clean, scalable SVG vectors entirely in your browser. [
 - 3x3 majority filter to clean quantization dither
 - Optional denoise blur for photographic sources
 - Background removal: auto-detect from corners, hex color, or eyedropper pick from the image
-- Presets matched to print practice: T-shirt 5 colors (screen-print spot-color sweet spot), Poster 6, Detailed 8, Simple 3 (logo range)
+- Presets matched to print practice: T-shirt 5 colors (screen-print spot-color sweet spot), Poster 6, Detailed 8, Simple 3, Logo 2 (two-color marks, stencils)
 - Live re-trace on setting changes, SVG download and clipboard copy
 - Responsive layout, keyboard operable, WCAG AA contrast
 
@@ -20,7 +18,7 @@ Convert raster images to clean, scalable SVG vectors entirely in your browser. [
 
 ```
 index.html          app shell
-css/styles.css      design tokens + layout
+css/styles.css      design tokens + layout (dark, family-matched)
 js/preprocess.js    pure pixel/string ops (Node-testable, no browser APIs)
 js/pipeline.js      decode, premultiplied rasterize, worker round-trip
 js/worker.js        Web Worker: preprocessing + wasm trace off the main thread
@@ -40,12 +38,4 @@ npm run build:wasm       # rebuild pkg/ (needs rustup target wasm32-unknown-unkn
 
 ## Deploy
 
-Static files only. The GitHub Actions workflow runs the tests and publishes the repository to GitHub Pages on every push to main.
-
-## Browser support
-
-Requires OffscreenCanvas and module workers: Chrome/Edge 109+, Firefox 111+, Safari 16.4+.
-
-## License
-
-[MIT](LICENSE)
+Static files only; any static host works. The repository ships a GitHub Actions workflow that publishes this directory to GitHub Pages on push to main.

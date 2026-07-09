@@ -39,6 +39,7 @@ export const PRESETS = Object.freeze({
   poster: { colors: 6, speckle: 4, layerDiff: 16 },
   detailed: { colors: 8, speckle: 2, layerDiff: 8 },
   simple: { colors: 3, speckle: 16, layerDiff: 32 },
+  logo: { colors: 2, speckle: 16, layerDiff: 48 },
 });
 
 /** Parse "#RRGGBB" or "RRGGBB" into [r, g, b], or null. */
