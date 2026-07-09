@@ -13,6 +13,7 @@ import {
   parseHexColor,
   quantize,
   resolveSettings,
+  snapToImageColor,
   toGrayscale,
   toHexColor,
 } from "../js/preprocess.js";
@@ -156,6 +157,22 @@ test("countPaths counts path elements", () => {
   assert.equal(countPaths("<svg></svg>"), 0);
 });
 
+test("snapToImageColor finds nearest palette color within distance", () => {
+  const img = makeImage(2, 1, [250, 250, 245, 255]); // off-white after quantize
+  setPixel(img, 1, 0, [10, 10, 10, 255]);
+  // User picked pure white; nearest image color is the off-white
+  assert.deepEqual(snapToImageColor(img, [255, 255, 255], 48), [250, 250, 245]);
+  // Nothing within 3 of pure red
+  assert.equal(snapToImageColor(img, [255, 0, 0], 3), null);
+});
+
+test("snapToImageColor ignores transparent pixels", () => {
+  const img = makeImage(2, 1, [255, 255, 255, 0]);
+  setPixel(img, 1, 0, [40, 40, 40, 255]);
+  assert.equal(snapToImageColor(img, [255, 255, 255], 16), null);
+  assert.deepEqual(snapToImageColor(img, [50, 50, 50], 16), [40, 40, 40]);
+});
+
 test("assertRasterBudget passes typical sizes, rejects oversize", () => {
   assert.equal(assertRasterBudget(1000, 1000, 2), 4_000_000);
   assert.equal(assertRasterBudget(4000, 4000, 2), MAX_TRACE_PIXELS);
@@ -163,18 +180,39 @@ test("assertRasterBudget passes typical sizes, rejects oversize", () => {
   assert.throws(() => assertRasterBudget(8000, 8001, 1), /Lower the upscale/);
 });
 
-test("logo preset resolves to 2 colors", () => {
-  const s = resolveSettings("logo", {});
-  assert.deepEqual([s.colors, s.speckle, s.layerDiff], [2, 16, 48]);
+test("color-count presets resolve, cleanup scales inversely", () => {
+  const two = resolveSettings("2", {});
+  assert.deepEqual([two.colors, two.speckle, two.layerDiff], [2, 16, 48]);
+  const many = resolveSettings("128", {});
+  assert.deepEqual([many.colors, many.speckle, many.layerDiff], [128, 2, 8]);
 });
 
 test("resolveSettings: explicit beats preset beats defaults", () => {
-  const s = resolveSettings("tshirt", { colors: 8 });
-  assert.equal(s.colors, 8); // explicit wins
-  assert.equal(s.speckle, 8); // from tshirt preset
-  assert.equal(s.layerDiff, 24); // from tshirt preset
+  const s = resolveSettings("8", { colors: 5 });
+  assert.equal(s.colors, 5); // explicit wins
+  assert.equal(s.speckle, 8); // from preset
+  assert.equal(s.layerDiff, 24); // from preset
   const d = resolveSettings(null, {});
   assert.equal(d.colors, 256);
   assert.equal(d.speckle, 8);
   assert.equal(d.layerDiff, 16);
+});
+
+test("knockOutEdges removes border-connected background only", async () => {
+  const { knockOutEdges } = await import("../js/preprocess.js");
+  // White bg, black square, and a white HOLE inside the square that must stay
+  const img = makeImage(10, 10, [255, 255, 255, 255]);
+  for (let y = 2; y < 8; y++) for (let x = 2; x < 8; x++) setPixel(img, x, y, [0, 0, 0, 255]);
+  setPixel(img, 5, 5, [255, 255, 255, 255]); // enclosed white pixel
+  const seed = knockOutEdges(img, 16);
+  assert.deepEqual(seed, [255, 255, 255]);
+  assert.equal(getPixel(img, 0, 0)[3], 0); // border removed
+  assert.equal(getPixel(img, 5, 5)[3], 255); // enclosed same-color pixel kept
+  assert.equal(getPixel(img, 3, 3)[3], 255); // subject kept
+});
+
+test("knockOutEdges returns null when corners already transparent", async () => {
+  const { knockOutEdges } = await import("../js/preprocess.js");
+  const img = makeImage(4, 4, [255, 255, 255, 0]);
+  assert.equal(knockOutEdges(img, 16), null);
 });

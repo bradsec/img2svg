@@ -1,6 +1,6 @@
 // UI wiring: state, controls, preview, download.
-import { decodeImage, rasterize, Tracer } from "./pipeline.js";
-import { countPaths, parseHexColor, PRESETS, toHexColor } from "./preprocess.js";
+import { decodeImage, rasterize, Tracer } from "./pipeline.js?v=3";
+import { countPaths, parseHexColor, PRESETS, toHexColor } from "./preprocess.js?v=3";
 
 const $ = (id) => document.getElementById(id);
 
@@ -35,12 +35,18 @@ const els = {
   resultView: $("result-view"),
   sourceView: $("source-view"),
   tracingVeil: $("tracing-veil"),
+  veilStage: $("veil-stage"),
+  veilElapsed: $("veil-elapsed"),
   error: $("error"),
   statPaths: $("stat-paths"),
   statSize: $("stat-size"),
   statTime: $("stat-time"),
   copySvg: $("copy-svg"),
   download: $("download"),
+  panStage: $("pan-stage"),
+  zoomIn: $("zoom-in"),
+  zoomOut: $("zoom-out"),
+  zoomReset: $("zoom-reset"),
 };
 
 const state = {
@@ -55,7 +61,7 @@ const state = {
   loadToken: 0, // guards against overlapping loads (drop while decoding)
 };
 
-const tracer = new Tracer(new URL("./worker.js", import.meta.url));
+const tracer = new Tracer(new URL("./worker.js?v=3", import.meta.url));
 
 function currentSettings() {
   return {
@@ -67,8 +73,8 @@ function currentSettings() {
     grayscale: els.grayscale.checked,
     denoise: els.denoise.checked,
     transparent:
-      els.transparent.value === "auto"
-        ? "auto"
+      els.transparent.value === "auto" || els.transparent.value === "edges"
+        ? els.transparent.value
         : els.transparent.value === "custom"
           ? parseHexColor(els.knockoutColor.value)
           : null,
@@ -93,10 +99,26 @@ function applyPreset(name) {
   updateOutputs();
 }
 
+let elapsedTimer = 0;
+
 function setBusy(busy) {
   els.tracingVeil.hidden = !busy;
-  if (busy) els.status.textContent = "Tracing…";
+  clearInterval(elapsedTimer);
+  if (busy) {
+    els.status.textContent = "Tracing…";
+    els.veilStage.textContent = "Starting…";
+    els.veilElapsed.textContent = "";
+    const started = Date.now();
+    elapsedTimer = setInterval(() => {
+      els.veilElapsed.textContent = `${Math.round((Date.now() - started) / 1000)}s`;
+    }, 1000);
+  }
 }
+
+tracer.onProgress = (label) => {
+  els.veilStage.textContent = label;
+  els.status.textContent = label;
+};
 
 function showError(message) {
   els.error.textContent = message;
@@ -173,6 +195,7 @@ async function loadFile(file) {
     els.sourceView.src = state.sourceUrl;
     els.emptyState.hidden = true;
     els.workspace.hidden = false;
+    resetView();
     setView("result");
     await retrace();
     els.preview.focus({ preventScroll: false });
@@ -284,6 +307,96 @@ for (const radio of document.querySelectorAll('input[name="mode"]')) {
 
 els.showResult.addEventListener("click", () => setView("result"));
 els.showSource.addEventListener("click", () => setView("source"));
+
+// -- Zoom & pan: wheel zooms at the cursor, drag pans, buttons step ----
+
+const view = { scale: 1, tx: 0, ty: 0 };
+const ZOOM_MIN = 0.2;
+const ZOOM_MAX = 32;
+
+function applyView() {
+  els.panStage.style.transform = `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`;
+  els.zoomReset.textContent = view.scale === 1 && view.tx === 0 && view.ty === 0
+    ? "Fit"
+    : `${Math.round(view.scale * 100)}%`;
+}
+
+function resetView() {
+  view.scale = 1;
+  view.tx = 0;
+  view.ty = 0;
+  applyView();
+}
+
+/** Zoom by factor, keeping the point (px, py) in preview coordinates fixed. */
+function zoomAt(factor, px, py) {
+  const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, view.scale * factor));
+  const f = next / view.scale;
+  view.tx = px - (px - view.tx) * f;
+  view.ty = py - (py - view.ty) * f;
+  view.scale = next;
+  applyView();
+}
+
+function zoomAtCenter(factor) {
+  zoomAt(factor, els.preview.clientWidth / 2, els.preview.clientHeight / 2);
+}
+
+els.zoomIn.addEventListener("click", () => zoomAtCenter(1.5));
+els.zoomOut.addEventListener("click", () => zoomAtCenter(1 / 1.5));
+els.zoomReset.addEventListener("click", resetView);
+
+els.preview.addEventListener(
+  "wheel",
+  (e) => {
+    e.preventDefault();
+    const rect = els.preview.getBoundingClientRect();
+    zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - rect.left, e.clientY - rect.top);
+  },
+  { passive: false },
+);
+
+els.preview.addEventListener("keydown", (e) => {
+  if (e.key === "+" || e.key === "=") zoomAtCenter(1.5);
+  else if (e.key === "-" || e.key === "_") zoomAtCenter(1 / 1.5);
+  else if (e.key === "0") resetView();
+  else return;
+  e.preventDefault();
+});
+
+const drag = { active: false, id: 0, startX: 0, startY: 0, baseTx: 0, baseTy: 0 };
+
+els.preview.addEventListener("pointerdown", (e) => {
+  if (state.picking || e.button !== 0) return;
+  drag.active = true;
+  drag.id = e.pointerId;
+  drag.startX = e.clientX;
+  drag.startY = e.clientY;
+  drag.baseTx = view.tx;
+  drag.baseTy = view.ty;
+  els.preview.classList.add("panning");
+  try {
+    els.preview.setPointerCapture(e.pointerId);
+  } catch {
+    // synthetic events have no active pointer; drag still works unbounded
+  }
+});
+
+els.preview.addEventListener("pointermove", (e) => {
+  if (!drag.active || e.pointerId !== drag.id) return;
+  view.tx = drag.baseTx + (e.clientX - drag.startX);
+  view.ty = drag.baseTy + (e.clientY - drag.startY);
+  applyView();
+});
+
+for (const type of ["pointerup", "pointercancel"]) {
+  els.preview.addEventListener(type, (e) => {
+    if (drag.active && e.pointerId === drag.id) {
+      drag.active = false;
+      els.preview.classList.remove("panning");
+    }
+  });
+}
 
 els.copySvg.addEventListener("click", async () => {
   if (!state.svg) return;

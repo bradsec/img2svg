@@ -78,34 +78,38 @@
         <button type="button" id="replace-image" class="button button-secondary">Replace image…</button>
 
         <div class="field">
-          <label for="preset">Preset</label>
+          <label for="preset" title="Quick setting: target color count with matched cleanup levels">Preset</label>
           <select id="preset">
             <option value="">Custom</option>
-            <option value="tshirt">T-shirt (5 colors)</option>
-            <option value="poster">Poster (6 colors)</option>
-            <option value="detailed">Detailed (8 colors)</option>
-            <option value="simple">Simple (3 colors)</option>
-            <option value="logo">Logo (2 colors)</option>
+            <option value="2">2 colors</option>
+            <option value="3">3 colors</option>
+            <option value="4">4 colors</option>
+            <option value="8">8 colors</option>
+            <option value="16">16 colors</option>
+            <option value="32">32 colors</option>
+            <option value="64">64 colors</option>
+            <option value="128">128 colors</option>
+            <option value="256">256 colors (all)</option>
           </select>
         </div>
 
         <div class="field">
-          <label for="colors">Colors <output id="colors-out" for="colors">All</output></label>
+          <label for="colors" title="Maximum colors in the output. Fewer colors gives simpler, cleaner, smaller SVGs">Colors <output id="colors-out" for="colors">All</output></label>
           <input type="range" id="colors" min="2" max="256" step="1" value="256">
         </div>
 
         <div class="field">
-          <label for="speckle">Speckle filter <output id="speckle-out" for="speckle">8</output></label>
+          <label for="speckle" title="Drops traced specks smaller than this many pixels. Raise to remove noise and dust">Speckle filter <output id="speckle-out" for="speckle">8</output></label>
           <input type="range" id="speckle" min="0" max="32" step="1" value="8">
         </div>
 
         <div class="field">
-          <label for="layer-diff">Layer difference <output id="layer-diff-out" for="layer-diff">16</output></label>
+          <label for="layer-diff" title="Minimum color difference between stacked layers. Raise to merge similar shades into one shape">Layer difference <output id="layer-diff-out" for="layer-diff">16</output></label>
           <input type="range" id="layer-diff" min="0" max="128" step="1" value="16">
         </div>
 
         <div class="field">
-          <label for="upscale">Upscale before tracing</label>
+          <label for="upscale" title="Enlarges the image before tracing for smoother curves. Higher is slower">Upscale before tracing</label>
           <select id="upscale">
             <option value="1">1× (off)</option>
             <option value="2" selected>2× (default)</option>
@@ -115,35 +119,36 @@
         </div>
 
         <fieldset class="field">
-          <legend>Path mode</legend>
-          <label class="choice"><input type="radio" name="mode" value="spline" checked> Spline (smooth)</label>
-          <label class="choice"><input type="radio" name="mode" value="polygon"> Polygon</label>
+          <legend title="How traced outlines are drawn">Path mode</legend>
+          <label class="choice"><input type="radio" name="mode" value="spline" checked> <span title="Smooth flowing curves; best for most artwork">Spline (smooth)</span></label>
+          <label class="choice"><input type="radio" name="mode" value="polygon"> <span title="Straight line segments; best for hard-edged geometric art">Polygon</span></label>
         </fieldset>
 
         <div class="field">
-          <label class="choice"><input type="checkbox" id="grayscale"> Grayscale</label>
-          <label class="choice"><input type="checkbox" id="denoise"> Denoise (photos; softens pixel art)</label>
+          <label class="choice"><input type="checkbox" id="grayscale"> <span title="Convert to shades of gray before tracing">Grayscale</span></label>
+          <label class="choice"><input type="checkbox" id="denoise"> <span title="Smooths photo noise before color reduction. Softens pixel art and fine texture">Denoise (photos; softens pixel art)</span></label>
         </div>
 
         <fieldset class="field">
-          <legend>Background removal</legend>
+          <legend title="Make the background transparent in the traced SVG">Background removal</legend>
           <div class="subfield">
-            <label for="transparent">Mode</label>
+            <label for="transparent" title="Edges: remove everything connected to the image border. Color: remove a color everywhere it appears">Mode</label>
             <select id="transparent">
               <option value="">Keep background</option>
-              <option value="auto">Auto-detect from corners</option>
-              <option value="custom">Pick a color</option>
+              <option value="edges">Remove connected from edges</option>
+              <option value="auto">Remove color (auto-detect)</option>
+              <option value="custom">Remove color (pick)</option>
             </select>
           </div>
           <div class="subfield" id="knockout-color-field" hidden>
-            <label for="knockout-color">Color to remove</label>
+            <label for="knockout-color" title="Pixels matching this color become transparent">Color to remove</label>
             <div class="color-row">
               <input type="color" id="knockout-color" value="#ffffff">
               <button type="button" id="pick-from-image" class="button button-secondary" aria-pressed="false" title="Click the image to sample the color (Esc cancels)">Pick from image</button>
             </div>
           </div>
           <div class="subfield" id="fuzz-field" hidden>
-            <label for="fuzz">Match tolerance <output id="fuzz-out" for="fuzz">16</output></label>
+            <label for="fuzz" title="How closely pixels must match the removed color. 0 is exact; raise for JPEG noise or gradients">Match tolerance <output id="fuzz-out" for="fuzz">16</output></label>
             <input type="range" id="fuzz" min="0" max="255" step="1" value="16">
           </div>
         </fieldset>
@@ -152,17 +157,24 @@
       <div class="preview-pane">
         <div class="preview-toolbar">
           <div class="view-toggle" role="group" aria-label="Preview view">
-            <button type="button" id="show-result" class="toggle" aria-pressed="true">Result</button>
-            <button type="button" id="show-source" class="toggle" aria-pressed="false">Source</button>
+            <button type="button" id="show-result" class="toggle" aria-pressed="true" title="Show the traced SVG output">Result</button>
+            <button type="button" id="show-source" class="toggle" aria-pressed="false" title="Show the original image">Source</button>
+          </div>
+          <div class="zoom-controls" role="group" aria-label="Zoom">
+            <button type="button" id="zoom-out" class="toggle" aria-label="Zoom out" title="Zoom out (-)">&minus;</button>
+            <button type="button" id="zoom-reset" class="toggle zoom-level" aria-label="Reset zoom to fit" title="Reset zoom and position (0)">Fit</button>
+            <button type="button" id="zoom-in" class="toggle" aria-label="Zoom in" title="Zoom in (+)">+</button>
           </div>
           <p id="status" class="status" role="status" aria-live="polite"></p>
         </div>
 
-        <div id="preview" class="preview checkerboard" tabindex="0" aria-label="Conversion preview">
-          <img id="result-view" alt="Traced SVG result">
-          <img id="source-view" alt="Source image" hidden>
+        <div id="preview" class="preview checkerboard" tabindex="0" aria-label="Conversion preview. Scroll or use plus and minus to zoom, drag to pan.">
+          <div id="pan-stage" class="pan-stage">
+            <img id="result-view" alt="Traced SVG result">
+            <img id="source-view" alt="Source image" hidden>
+          </div>
           <div id="tracing-veil" class="tracing-veil" hidden>
-            <p>Tracing…</p>
+            <p><span id="veil-stage">Tracing…</span> <span id="veil-elapsed" class="veil-elapsed"></span></p>
           </div>
         </div>
 
@@ -173,7 +185,7 @@
             <div><dt>Time</dt><dd id="stat-time">–</dd></div>
           </dl>
           <div class="action-buttons">
-            <button type="button" id="copy-svg" class="button button-secondary" disabled>Copy SVG</button>
+            <button type="button" id="copy-svg" class="button button-secondary" disabled title="Copy the SVG markup to the clipboard">Copy SVG</button>
             <a id="download" class="button button-primary" aria-disabled="true" download>Download SVG</a>
           </div>
         </div>
@@ -190,6 +202,6 @@
     </a>
   </footer>
 
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/app.js?v=3"></script>
 </body>
 </html>

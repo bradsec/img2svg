@@ -1,5 +1,5 @@
 // Browser-side pipeline: decode, premultiplied upscale, worker round-trip.
-import { assertRasterBudget } from "./preprocess.js";
+import { assertRasterBudget } from "./preprocess.js?v=3";
 
 /**
  * Decode a File/Blob into an ImageBitmap. Throws a readable error for
@@ -40,8 +40,13 @@ export class Tracer {
     this.worker = new Worker(workerUrl, { type: "module" });
     this.nextId = 0;
     this.pending = new Map();
+    this.onProgress = null; // (stageLabel) => void, latest request only
     this.worker.onmessage = (event) => {
-      const { id } = event.data;
+      const { id, stage } = event.data;
+      if (stage !== undefined) {
+        if (id === this.nextId - 1) this.onProgress?.(stage);
+        return;
+      }
       const entry = this.pending.get(id);
       if (!entry) return;
       this.pending.delete(id);

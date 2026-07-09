@@ -34,12 +34,19 @@ export const DEFAULTS = Object.freeze({
   fuzz: 16,
 });
 
+// Keyed by color count. Speckle and layer difference scale inversely:
+// fewer colors means flat print-style output, so cleanup gets more
+// aggressive; more colors means detail retention matters.
 export const PRESETS = Object.freeze({
-  tshirt: { colors: 5, speckle: 8, layerDiff: 24 },
-  poster: { colors: 6, speckle: 4, layerDiff: 16 },
-  detailed: { colors: 8, speckle: 2, layerDiff: 8 },
-  simple: { colors: 3, speckle: 16, layerDiff: 32 },
-  logo: { colors: 2, speckle: 16, layerDiff: 48 },
+  2: { colors: 2, speckle: 16, layerDiff: 48 },
+  3: { colors: 3, speckle: 16, layerDiff: 32 },
+  4: { colors: 4, speckle: 12, layerDiff: 28 },
+  8: { colors: 8, speckle: 8, layerDiff: 24 },
+  16: { colors: 16, speckle: 8, layerDiff: 16 },
+  32: { colors: 32, speckle: 4, layerDiff: 16 },
+  64: { colors: 64, speckle: 4, layerDiff: 12 },
+  128: { colors: 128, speckle: 2, layerDiff: 8 },
+  256: { colors: 256, speckle: 8, layerDiff: 16 },
 });
 
 /** Parse "#RRGGBB" or "RRGGBB" into [r, g, b], or null. */
@@ -100,6 +107,85 @@ export function knockOutColor(img, [r, g, b], fuzz) {
     if (d <= fuzz) data[i + 3] = 0;
   }
   return img;
+}
+
+/**
+ * Flood-fill background removal: zero the alpha of every pixel CONNECTED
+ * to the image border whose color matches the border seed within fuzz
+ * (max per-channel difference). Pixels of the same color inside the
+ * subject stay opaque because they are not connected to the edge.
+ * Seed color comes from the most common opaque corner; every border
+ * pixel matching it seeds the fill. Returns the seed color, or null when
+ * the corners are already transparent. Mutates img in place.
+ */
+export function knockOutEdges(img, fuzz) {
+  const { data, width, height } = img;
+  const seed = detectBackgroundColor(img);
+  if (!seed) return null;
+  const [sr, sg, sb] = seed;
+  const matches = (i) =>
+    data[i + 3] >= ALPHA_THRESHOLD &&
+    Math.abs(data[i] - sr) <= fuzz &&
+    Math.abs(data[i + 1] - sg) <= fuzz &&
+    Math.abs(data[i + 2] - sb) <= fuzz;
+
+  const visited = new Uint8Array(width * height);
+  const stack = [];
+  const push = (x, y) => {
+    const p = y * width + x;
+    if (!visited[p] && matches(p * 4)) {
+      visited[p] = 1;
+      stack.push(p);
+    }
+  };
+  for (let x = 0; x < width; x++) {
+    push(x, 0);
+    push(x, height - 1);
+  }
+  for (let y = 0; y < height; y++) {
+    push(0, y);
+    push(width - 1, y);
+  }
+  while (stack.length) {
+    const p = stack.pop();
+    data[p * 4 + 3] = 0;
+    const x = p % width;
+    const y = (p / width) | 0;
+    if (x > 0) push(x - 1, y);
+    if (x < width - 1) push(x + 1, y);
+    if (y > 0) push(x, y - 1);
+    if (y < height - 1) push(x, y + 1);
+  }
+  return seed;
+}
+
+/**
+ * Nearest opaque color in the image to target (max per-channel distance),
+ * or null when nothing is within maxDistance. Intended for quantized
+ * images, where snapping the knockout color to the palette removes the
+ * whole cluster instead of only pixels inside the fuzz radius.
+ */
+export function snapToImageColor(img, [r, g, b], maxDistance) {
+  const { data } = img;
+  const seen = new Set();
+  let best = null;
+  let bestDist = Infinity;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < ALPHA_THRESHOLD) continue;
+    const key = (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const d = Math.max(
+      Math.abs(data[i] - r),
+      Math.abs(data[i + 1] - g),
+      Math.abs(data[i + 2] - b),
+    );
+    if (d < bestDist) {
+      bestDist = d;
+      best = [data[i], data[i + 1], data[i + 2]];
+    }
+  }
+  return bestDist <= maxDistance ? best : null;
 }
 
 /**
