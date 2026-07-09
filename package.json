@@ -1,0 +1,12 @@
+{
+  "name": "img2svg-webapp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser-based raster to SVG converter using vtracer compiled to WebAssembly",
+  "scripts": {
+    "test": "node --test",
+    "serve": "python3 -m http.server 8137",
+    "build:wasm": "cd wasm && wasm-pack build --target web --out-dir ../pkg --release && rm -f ../pkg/.gitignore"
+  }
+}

@@ -1,0 +1,298 @@
+// UI wiring: state, controls, preview, download.
+import { decodeImage, rasterize, Tracer } from "./pipeline.js";
+import { countPaths, parseHexColor, PRESETS, toHexColor } from "./preprocess.js";
+
+const $ = (id) => document.getElementById(id);
+
+const els = {
+  emptyState: $("empty-state"),
+  workspace: $("workspace"),
+  dropzone: $("dropzone"),
+  pickFile: $("pick-file"),
+  fileInput: $("file-input"),
+  replaceImage: $("replace-image"),
+  preset: $("preset"),
+  colors: $("colors"),
+  colorsOut: $("colors-out"),
+  speckle: $("speckle"),
+  speckleOut: $("speckle-out"),
+  layerDiff: $("layer-diff"),
+  layerDiffOut: $("layer-diff-out"),
+  upscale: $("upscale"),
+  grayscale: $("grayscale"),
+  transparent: $("transparent"),
+  knockoutColorField: $("knockout-color-field"),
+  knockoutColor: $("knockout-color"),
+  pickFromImage: $("pick-from-image"),
+  denoise: $("denoise"),
+  fuzzField: $("fuzz-field"),
+  fuzz: $("fuzz"),
+  fuzzOut: $("fuzz-out"),
+  showResult: $("show-result"),
+  showSource: $("show-source"),
+  status: $("status"),
+  preview: $("preview"),
+  resultView: $("result-view"),
+  sourceView: $("source-view"),
+  tracingVeil: $("tracing-veil"),
+  error: $("error"),
+  statPaths: $("stat-paths"),
+  statSize: $("stat-size"),
+  statTime: $("stat-time"),
+  copySvg: $("copy-svg"),
+  download: $("download"),
+};
+
+const state = {
+  bitmap: null,
+  fileName: "image",
+  sourceUrl: null,
+  svg: null,
+  downloadUrl: null,
+  debounce: 0,
+  raster: null, // { upscale, imageData } cache, keyed by current bitmap
+  picking: false,
+  loadToken: 0, // guards against overlapping loads (drop while decoding)
+};
+
+const tracer = new Tracer(new URL("./worker.js", import.meta.url));
+
+function currentSettings() {
+  return {
+    colors: Number(els.colors.value),
+    speckle: Number(els.speckle.value),
+    layerDiff: Number(els.layerDiff.value),
+    upscale: Number(els.upscale.value),
+    mode: document.querySelector('input[name="mode"]:checked').value,
+    grayscale: els.grayscale.checked,
+    denoise: els.denoise.checked,
+    transparent:
+      els.transparent.value === "auto"
+        ? "auto"
+        : els.transparent.value === "custom"
+          ? parseHexColor(els.knockoutColor.value)
+          : null,
+    fuzz: Number(els.fuzz.value),
+  };
+}
+
+function updateOutputs() {
+  const colors = Number(els.colors.value);
+  els.colorsOut.textContent = colors >= 256 ? "All" : String(colors);
+  els.speckleOut.textContent = els.speckle.value;
+  els.layerDiffOut.textContent = els.layerDiff.value;
+  els.fuzzOut.textContent = els.fuzz.value;
+}
+
+function applyPreset(name) {
+  const preset = PRESETS[name];
+  if (!preset) return;
+  els.colors.value = preset.colors;
+  els.speckle.value = preset.speckle;
+  els.layerDiff.value = preset.layerDiff;
+  updateOutputs();
+}
+
+function setBusy(busy) {
+  els.tracingVeil.hidden = !busy;
+  if (busy) els.status.textContent = "Tracing…";
+}
+
+function showError(message) {
+  els.error.textContent = message;
+  els.error.hidden = !message;
+}
+
+function setResultActions(enabled) {
+  els.copySvg.disabled = !enabled;
+  els.download.setAttribute("aria-disabled", String(!enabled));
+  if (!enabled) els.download.removeAttribute("href");
+}
+
+async function retrace() {
+  if (!state.bitmap) return;
+  setBusy(true);
+  showError("");
+  try {
+    const settings = currentSettings();
+    if (!state.raster || state.raster.upscale !== settings.upscale) {
+      state.raster = { upscale: settings.upscale, imageData: rasterize(state.bitmap, settings.upscale) };
+    }
+    const result = await tracer.trace(state.raster.imageData, settings, state.bitmap.width, state.bitmap.height);
+    if (!result) return; // superseded by a newer request
+    state.svg = result.svg;
+
+    // Rendered via <img> + blob URL: sandboxes the generated markup and
+    // avoids inflating the DOM with thousands of inline path nodes.
+    if (state.downloadUrl) URL.revokeObjectURL(state.downloadUrl);
+    state.downloadUrl = URL.createObjectURL(new Blob([result.svg], { type: "image/svg+xml" }));
+    els.resultView.src = state.downloadUrl;
+
+    const paths = countPaths(result.svg);
+    const kb = new Blob([result.svg]).size / 1024;
+    els.statPaths.textContent = paths.toLocaleString();
+    els.statSize.textContent = kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb.toFixed(0)} KB`;
+    els.statTime.textContent = `${result.ms.toLocaleString()} ms`;
+    els.status.textContent = result.knockedOut
+      ? `Traced ${paths.toLocaleString()} paths. Removed background rgb(${result.knockedOut.join(", ")}).`
+      : `Traced ${paths.toLocaleString()} paths.`;
+
+    els.download.href = state.downloadUrl;
+    els.download.download = `${state.fileName.replace(/\.[^.]+$/, "")}.svg`;
+    setResultActions(true);
+    setBusy(false);
+  } catch (err) {
+    setBusy(false);
+    setResultActions(false);
+    els.status.textContent = "";
+    showError(err.message || "Conversion failed.");
+  }
+}
+
+function scheduleRetrace() {
+  clearTimeout(state.debounce);
+  state.debounce = setTimeout(retrace, 350);
+}
+
+async function loadFile(file) {
+  if (!file) return;
+  showError("");
+  const token = ++state.loadToken;
+  try {
+    const bitmap = await decodeImage(file);
+    if (token !== state.loadToken) {
+      bitmap.close(); // a newer load started while this one decoded
+      return;
+    }
+    state.bitmap?.close();
+    state.bitmap = bitmap;
+    state.raster = null;
+    state.fileName = file.name || "image";
+    if (state.sourceUrl) URL.revokeObjectURL(state.sourceUrl);
+    state.sourceUrl = URL.createObjectURL(file);
+    els.sourceView.src = state.sourceUrl;
+    els.emptyState.hidden = true;
+    els.workspace.hidden = false;
+    setView("result");
+    await retrace();
+    els.preview.focus({ preventScroll: false });
+  } catch (err) {
+    if (token === state.loadToken) showError(err.message || "Could not open that file.");
+  }
+}
+
+function setView(view) {
+  const showResult = view === "result";
+  els.showResult.setAttribute("aria-pressed", String(showResult));
+  els.showSource.setAttribute("aria-pressed", String(!showResult));
+  els.resultView.hidden = !showResult;
+  els.sourceView.hidden = showResult;
+}
+
+// -- Events ------------------------------------------------------------
+
+els.pickFile.addEventListener("click", () => els.fileInput.click());
+els.replaceImage.addEventListener("click", () => els.fileInput.click());
+els.fileInput.addEventListener("change", () => loadFile(els.fileInput.files[0]));
+
+// Body-level handlers cover the dropzone too (events bubble), so a drop
+// anywhere on the page works in both empty and workspace states.
+document.body.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  els.dropzone.classList.add("dragover");
+});
+document.body.addEventListener("dragleave", () => els.dropzone.classList.remove("dragover"));
+document.body.addEventListener("drop", (e) => {
+  e.preventDefault();
+  els.dropzone.classList.remove("dragover");
+  loadFile(e.dataTransfer?.files?.[0]);
+});
+
+els.preset.addEventListener("change", () => {
+  applyPreset(els.preset.value);
+  scheduleRetrace();
+});
+
+for (const input of [els.colors, els.speckle, els.layerDiff]) {
+  input.addEventListener("input", () => {
+    els.preset.value = ""; // manual change leaves the preset
+    updateOutputs();
+    scheduleRetrace();
+  });
+}
+
+els.fuzz.addEventListener("input", () => {
+  updateOutputs();
+  scheduleRetrace();
+});
+
+els.transparent.addEventListener("change", () => {
+  const mode = els.transparent.value;
+  els.knockoutColorField.hidden = mode !== "custom";
+  els.fuzzField.hidden = mode === "";
+  scheduleRetrace();
+});
+
+els.knockoutColor.addEventListener("input", scheduleRetrace);
+els.upscale.addEventListener("change", scheduleRetrace);
+els.grayscale.addEventListener("change", scheduleRetrace);
+els.denoise.addEventListener("change", scheduleRetrace);
+
+// -- Eyedropper: arm, click the source image to sample, Esc cancels ----
+
+function setEyedropper(armed) {
+  state.picking = armed;
+  els.pickFromImage.setAttribute("aria-pressed", String(armed));
+  els.preview.classList.toggle("picking", armed);
+  if (armed) {
+    setView("source");
+    els.status.textContent = "Click the image to sample the background color. Esc cancels.";
+  } else {
+    els.status.textContent = "";
+  }
+}
+
+els.pickFromImage.addEventListener("click", () => setEyedropper(!state.picking));
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && state.picking) setEyedropper(false);
+});
+
+els.sourceView.addEventListener("click", (e) => {
+  if (!state.picking || !state.bitmap) return;
+  const rect = els.sourceView.getBoundingClientRect();
+  const x = Math.min(
+    state.bitmap.width - 1,
+    Math.max(0, Math.floor(((e.clientX - rect.left) / rect.width) * state.bitmap.width)),
+  );
+  const y = Math.min(
+    state.bitmap.height - 1,
+    Math.max(0, Math.floor(((e.clientY - rect.top) / rect.height) * state.bitmap.height)),
+  );
+  const canvas = new OffscreenCanvas(1, 1);
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(state.bitmap, x, y, 1, 1, 0, 0, 1, 1);
+  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+  els.knockoutColor.value = toHexColor([r, g, b]).toLowerCase();
+  setEyedropper(false);
+  setView("result");
+  scheduleRetrace();
+});
+for (const radio of document.querySelectorAll('input[name="mode"]')) {
+  radio.addEventListener("change", scheduleRetrace);
+}
+
+els.showResult.addEventListener("click", () => setView("result"));
+els.showSource.addEventListener("click", () => setView("source"));
+
+els.copySvg.addEventListener("click", async () => {
+  if (!state.svg) return;
+  try {
+    await navigator.clipboard.writeText(state.svg);
+    els.status.textContent = "SVG copied to clipboard.";
+  } catch {
+    els.status.textContent = "Clipboard unavailable. Use Download instead.";
+  }
+});
+
+updateOutputs();

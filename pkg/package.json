@@ -1,0 +1,17 @@
+{
+  "name": "img2svg-wasm",
+  "type": "module",
+  "description": "WASM bindings around vtracer for the img2svg web app",
+  "version": "0.1.0",
+  "license": "MIT",
+  "files": [
+    "img2svg_wasm_bg.wasm",
+    "img2svg_wasm.js",
+    "img2svg_wasm.d.ts"
+  ],
+  "main": "img2svg_wasm.js",
+  "types": "img2svg_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

@@ -1,0 +1,411 @@
+// Pure pixel and string operations for the img2svg pipeline.
+// Every function here runs in Node (tests) and the browser (worker/app):
+// images are plain { data: Uint8ClampedArray, width, height } RGBA buffers.
+
+export const ALPHA_THRESHOLD = 128;
+
+// Upper bound on upscaled pixels sent to the tracer. Beyond this the
+// RGBA buffers alone run to hundreds of MB and canvas/wasm allocation
+// fails with opaque platform errors, so fail early with a clear one.
+export const MAX_TRACE_PIXELS = 64_000_000;
+
+/**
+ * Throw a readable error when width x height at the given upscale factor
+ * exceeds MAX_TRACE_PIXELS. Returns the upscaled pixel count otherwise.
+ */
+export function assertRasterBudget(width, height, upscale) {
+  const pixels = width * upscale * height * upscale;
+  if (pixels > MAX_TRACE_PIXELS) {
+    const mp = (n) => `${Math.round(n / 1e6)} MP`;
+    throw new Error(
+      `Image is too large to trace at ${upscale}x (${mp(pixels)}; limit ${mp(MAX_TRACE_PIXELS)}). Lower the upscale factor or use a smaller image.`,
+    );
+  }
+  return pixels;
+}
+
+export const DEFAULTS = Object.freeze({
+  colors: 256,
+  speckle: 8,
+  layerDiff: 16,
+  upscale: 2,
+  mode: "spline",
+  grayscale: false,
+  fuzz: 16,
+});
+
+export const PRESETS = Object.freeze({
+  tshirt: { colors: 5, speckle: 8, layerDiff: 24 },
+  poster: { colors: 6, speckle: 4, layerDiff: 16 },
+  detailed: { colors: 8, speckle: 2, layerDiff: 8 },
+  simple: { colors: 3, speckle: 16, layerDiff: 32 },
+});
+
+/** Parse "#RRGGBB" or "RRGGBB" into [r, g, b], or null. */
+export function parseHexColor(value) {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(String(value).trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+}
+
+/** Format [r, g, b] as "#RRGGBB". */
+export function toHexColor([r, g, b]) {
+  return (
+    "#" + [r, g, b].map((c) => c.toString(16).padStart(2, "0").toUpperCase()).join("")
+  );
+}
+
+/**
+ * Most common opaque corner color, or null when the corners are already
+ * mostly transparent.
+ */
+export function detectBackgroundColor(img) {
+  const { data, width, height } = img;
+  const idx = (x, y) => (y * width + x) * 4;
+  const corners = [idx(0, 0), idx(width - 1, 0), idx(0, height - 1), idx(width - 1, height - 1)];
+  const opaque = [];
+  for (const i of corners) {
+    if (data[i + 3] >= ALPHA_THRESHOLD) opaque.push([data[i], data[i + 1], data[i + 2]]);
+  }
+  if (opaque.length === 0) return null;
+  const counts = new Map();
+  let best = null;
+  let bestCount = 0;
+  for (const c of opaque) {
+    const key = c.join(",");
+    const n = (counts.get(key) || 0) + 1;
+    counts.set(key, n);
+    if (n > bestCount) {
+      bestCount = n;
+      best = c;
+    }
+  }
+  return best;
+}
+
+/**
+ * Set alpha to 0 wherever the image matches color within fuzz
+ * (max per-channel difference). Mutates img in place.
+ */
+export function knockOutColor(img, [r, g, b], fuzz) {
+  const { data } = img;
+  for (let i = 0; i < data.length; i += 4) {
+    const d = Math.max(
+      Math.abs(data[i] - r),
+      Math.abs(data[i + 1] - g),
+      Math.abs(data[i + 2] - b),
+    );
+    if (d <= fuzz) data[i + 3] = 0;
+  }
+  return img;
+}
+
+/**
+ * Threshold alpha to 0 or 255 so anti-aliased edge fringe cannot fragment
+ * the trace into junk paths. Mutates img in place.
+ */
+export function binarizeAlpha(img) {
+  const { data } = img;
+  for (let i = 3; i < data.length; i += 4) {
+    data[i] = data[i] >= ALPHA_THRESHOLD ? 255 : 0;
+  }
+  return img;
+}
+
+/** Luminance (Rec. 601) grayscale conversion, alpha preserved. In place. */
+export function toGrayscale(img) {
+  const { data } = img;
+  for (let i = 0; i < data.length; i += 4) {
+    const l = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+    data[i] = data[i + 1] = data[i + 2] = l;
+  }
+  return img;
+}
+
+/** Most common opaque color, sampled with a stride for speed. */
+export function dominantOpaqueColor(img) {
+  const { data } = img;
+  const pixelCount = data.length / 4;
+  const stride = Math.max(1, Math.floor(pixelCount / 4096)) * 4;
+  const counts = new Map();
+  let best = null;
+  let bestCount = 0;
+  for (let i = 0; i < data.length; i += stride) {
+    if (data[i + 3] < ALPHA_THRESHOLD) continue;
+    const key = (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
+    const n = (counts.get(key) || 0) + 1;
+    counts.set(key, n);
+    if (n > bestCount) {
+      bestCount = n;
+      best = key;
+    }
+  }
+  if (best === null) return [255, 255, 255];
+  return [(best >> 16) & 0xff, (best >> 8) & 0xff, best & 0xff];
+}
+
+/**
+ * Median-cut color quantization to at most `colors` colors. Transparent
+ * areas are backfilled with the dominant opaque color before the palette
+ * is computed so hidden pixels do not pollute it; alpha is untouched.
+ * Mutates img in place.
+ */
+export function quantize(img, colors) {
+  const { data } = img;
+  const backfill = dominantOpaqueColor(img);
+
+  // Histogram of unique colors (transparent pixels count as backfill).
+  const hist = new Map();
+  for (let i = 0; i < data.length; i += 4) {
+    const key =
+      data[i + 3] < ALPHA_THRESHOLD
+        ? (backfill[0] << 16) | (backfill[1] << 8) | backfill[2]
+        : (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
+    hist.set(key, (hist.get(key) || 0) + 1);
+  }
+  if (hist.size <= colors) return img;
+
+  const entries = [...hist.entries()].map(([key, count]) => ({
+    r: (key >> 16) & 0xff,
+    g: (key >> 8) & 0xff,
+    b: key & 0xff,
+    count,
+  }));
+
+  // Median cut: repeatedly split the box with the largest channel range.
+  const boxes = [entries];
+  while (boxes.length < colors) {
+    let boxIndex = -1;
+    let boxRange = -1;
+    let boxChannel = "r";
+    for (let i = 0; i < boxes.length; i++) {
+      if (boxes[i].length < 2) continue;
+      for (const ch of ["r", "g", "b"]) {
+        let min = 255;
+        let max = 0;
+        for (const e of boxes[i]) {
+          if (e[ch] < min) min = e[ch];
+          if (e[ch] > max) max = e[ch];
+        }
+        const range = max - min;
+        if (range > boxRange) {
+          boxRange = range;
+          boxIndex = i;
+          boxChannel = ch;
+        }
+      }
+    }
+    if (boxIndex === -1) break;
+    const box = boxes[boxIndex];
+    box.sort((a, b) => a[boxChannel] - b[boxChannel]);
+    // Split at the pixel-weighted median so dominant colors get their own
+    // box instead of being averaged away with rare neighbors.
+    const totalCount = box.reduce((sum, e) => sum + e.count, 0);
+    let acc = 0;
+    let half = 0;
+    while (half < box.length - 1 && acc + box[half].count < totalCount / 2) {
+      acc += box[half].count;
+      half += 1;
+    }
+    if (half === 0) half = 1;
+    boxes.splice(boxIndex, 1, box.slice(0, half), box.slice(half));
+  }
+
+  // Weighted average color per box seeds the palette.
+  let palette = boxes.map((box) => {
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    let total = 0;
+    for (const e of box) {
+      r += e.r * e.count;
+      g += e.g * e.count;
+      b += e.b * e.count;
+      total += e.count;
+    }
+    return [r / total, g / total, b / total];
+  });
+
+  // Lloyd (k-means) refinement over the histogram. Median-cut alone leaves
+  // centroids off the natural clusters, so gradient pixels flip between
+  // adjacent palette entries and trace into thousands of ragged paths.
+  const assign = new Int32Array(entries.length);
+  for (let iter = 0; iter < 10; iter++) {
+    let changed = false;
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      let best = 0;
+      let bestDist = Infinity;
+      for (let k = 0; k < palette.length; k++) {
+        const dr = e.r - palette[k][0];
+        const dg = e.g - palette[k][1];
+        const db = e.b - palette[k][2];
+        const dist = dr * dr + dg * dg + db * db;
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = k;
+        }
+      }
+      if (assign[i] !== best) {
+        assign[i] = best;
+        changed = true;
+      }
+    }
+    if (!changed && iter > 0) break;
+    const sums = palette.map(() => [0, 0, 0, 0]);
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      const s = sums[assign[i]];
+      s[0] += e.r * e.count;
+      s[1] += e.g * e.count;
+      s[2] += e.b * e.count;
+      s[3] += e.count;
+    }
+    palette = sums.map((s, k) => (s[3] > 0 ? [s[0] / s[3], s[1] / s[3], s[2] / s[3]] : palette[k]));
+  }
+
+  // Every unique color maps to its (now converged) nearest palette entry.
+  const rounded = palette.map((p) => p.map(Math.round));
+  const colorToPalette = new Map();
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    colorToPalette.set((e.r << 16) | (e.g << 8) | e.b, rounded[assign[i]]);
+  }
+
+  for (let i = 0; i < data.length; i += 4) {
+    const key =
+      data[i + 3] < ALPHA_THRESHOLD
+        ? (backfill[0] << 16) | (backfill[1] << 8) | backfill[2]
+        : (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
+    const [r, g, b] = colorToPalette.get(key);
+    data[i] = r;
+    data[i + 1] = g;
+    data[i + 2] = b;
+  }
+  return img;
+}
+
+/**
+ * Separable 3x3 box blur on RGB, repeated `passes` times (2 passes
+ * approximate a gaussian). Alpha is untouched and transparent pixels do
+ * not bleed into opaque ones. Smooths sensor/compression noise so
+ * quantized gradient bands get clean contours instead of ragged ones.
+ */
+export function boxBlur(img, passes = 2) {
+  const { data, width, height } = img;
+  const buf = new Uint8ClampedArray(data.length);
+
+  const blurAxis = (src, dst, horizontal) => {
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        if (src[i + 3] < ALPHA_THRESHOLD) {
+          dst.set(src.subarray(i, i + 4), i);
+          continue;
+        }
+        let r = 0;
+        let g = 0;
+        let b = 0;
+        let n = 0;
+        for (let d = -1; d <= 1; d++) {
+          const nx = horizontal ? x + d : x;
+          const ny = horizontal ? y : y + d;
+          if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+          const j = (ny * width + nx) * 4;
+          if (src[j + 3] < ALPHA_THRESHOLD) continue;
+          r += src[j];
+          g += src[j + 1];
+          b += src[j + 2];
+          n++;
+        }
+        dst[i] = r / n;
+        dst[i + 1] = g / n;
+        dst[i + 2] = b / n;
+        dst[i + 3] = src[i + 3];
+      }
+    }
+  };
+
+  for (let pass = 0; pass < passes; pass++) {
+    blurAxis(data, buf, true);
+    blurAxis(buf, data, false);
+  }
+  return img;
+}
+
+/**
+ * 3x3 majority filter on opaque RGB values. Cleans single-pixel dithering
+ * left along region boundaries after quantization, which otherwise traces
+ * into hundreds of tiny paths. Alpha is untouched. Returns a new buffer
+ * written back into img.
+ */
+export function modeFilter(img) {
+  const { data, width, height } = img;
+  const out = new Uint8ClampedArray(data);
+  const counts = new Map();
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      if (data[i + 3] < ALPHA_THRESHOLD) continue;
+      counts.clear();
+      let best = -1;
+      let bestCount = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= height) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          if (nx < 0 || nx >= width) continue;
+          const j = (ny * width + nx) * 4;
+          if (data[j + 3] < ALPHA_THRESHOLD) continue;
+          const key = (data[j] << 16) | (data[j + 1] << 8) | data[j + 2];
+          const n = (counts.get(key) || 0) + 1;
+          counts.set(key, n);
+          if (n > bestCount) {
+            bestCount = n;
+            best = key;
+          }
+        }
+      }
+      // Replace only clear majorities so real detail survives.
+      if (best >= 0 && bestCount >= 5) {
+        out[i] = (best >> 16) & 0xff;
+        out[i + 1] = (best >> 8) & 0xff;
+        out[i + 2] = best & 0xff;
+      }
+    }
+  }
+  data.set(out);
+  return img;
+}
+
+/**
+ * Rewrite the SVG root so the document keeps the source pixel dimensions
+ * with a viewBox, hiding the internal upscale factor. Returns the SVG
+ * unchanged when the root does not match the expected vtracer shape.
+ */
+export function finalizeSvg(svgText, width, height) {
+  return svgText.replace(
+    /(<svg[^>]*?) width="(\d+)" height="(\d+)">/,
+    (_, head, w, h) => `${head} width="${width}" height="${height}" viewBox="0 0 ${w} ${h}">`,
+  );
+}
+
+/** Count path elements in an SVG string. */
+export function countPaths(svgText) {
+  return (svgText.match(/<path\b/g) || []).length;
+}
+
+/**
+ * Resolve preset + explicit values the same way the CLI does:
+ * explicit user values win over preset values, preset over defaults.
+ * `explicit` holds only the keys the user actually set.
+ */
+export function resolveSettings(preset, explicit = {}) {
+  const merged = { ...DEFAULTS, ...(preset ? PRESETS[preset] : {}) };
+  for (const [key, value] of Object.entries(explicit)) {
+    if (value !== undefined && value !== null) merged[key] = value;
+  }
+  return merged;
+}

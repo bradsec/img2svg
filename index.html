@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Convert PNG, JPEG, WebP, GIF, and BMP images to clean SVG vectors entirely in your browser. Color quantization, background removal, print-ready presets. No upload, no backend.">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#141517">
+  <link rel="canonical" href="https://bradsec.github.io/img2svg/">
+  <link rel="icon" href="./favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+  <link rel="manifest" href="./site.webmanifest">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="img2svg">
+  <meta property="og:title" content="img2svg - Convert Images to SVG Vectors in Your Browser">
+  <meta property="og:description" content="Convert PNG, JPEG, WebP, GIF, and BMP images to clean SVG vectors entirely in your browser. Traced by vtracer compiled to WebAssembly. No upload, no backend.">
+  <meta property="og:url" content="https://bradsec.github.io/img2svg/">
+  <meta property="og:image" content="https://bradsec.github.io/img2svg/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="img2svg - Convert Images to SVG Vectors in Your Browser">
+  <meta name="twitter:description" content="Convert raster images to clean SVG vectors entirely in your browser. No upload, no backend.">
+  <meta name="twitter:image" content="https://bradsec.github.io/img2svg/og-image.png">
+
+  <title>img2svg - Convert Images to SVG Vectors in Your Browser</title>
+
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "img2svg",
+      "url": "https://bradsec.github.io/img2svg/",
+      "description": "Convert PNG, JPEG, WebP, GIF, and BMP images to clean SVG vectors entirely in your browser. Traced by vtracer compiled to WebAssembly. No upload, no backend.",
+      "applicationCategory": "MultimediaApplication",
+      "operatingSystem": "Any (modern web browser)",
+      "browserRequirements": "Requires JavaScript and WebAssembly.",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+    }
+  </script>
+
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <path d="M2 13 L6 4 L10 11 L14 3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h1>img2svg</h1>
+      <span class="tagline">Raster in. Clean vectors out. Nothing leaves your browser.</span>
+    </div>
+  </header>
+
+  <main id="main">
+    <p id="error" class="error" role="alert" hidden></p>
+
+    <!-- Empty state: the drop zone is the whole stage -->
+    <section id="empty-state" class="stage-empty">
+      <div id="dropzone" class="dropzone">
+        <svg class="dropzone-mark" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+          <path d="M6 38 L18 12 L28 32 L42 8" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <p class="dropzone-title">Drop an image here</p>
+        <p class="dropzone-hint">PNG, JPEG, WebP, GIF or BMP. Converted to SVG on your machine; no upload.</p>
+        <button type="button" id="pick-file" class="button button-primary">Choose image</button>
+        <input type="file" id="file-input" accept="image/*" class="visually-hidden" aria-label="Choose an image to convert">
+      </div>
+    </section>
+
+    <!-- Workspace: hidden until an image loads -->
+    <section id="workspace" class="workspace" hidden>
+      <aside class="controls" aria-label="Conversion settings">
+        <button type="button" id="replace-image" class="button button-secondary">Replace image…</button>
+
+        <div class="field">
+          <label for="preset">Preset</label>
+          <select id="preset">
+            <option value="">Custom</option>
+            <option value="tshirt">T-shirt (5 colors)</option>
+            <option value="poster">Poster (6 colors)</option>
+            <option value="detailed">Detailed (8 colors)</option>
+            <option value="simple">Simple (3 colors)</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="colors">Colors <output id="colors-out" for="colors">All</output></label>
+          <input type="range" id="colors" min="2" max="256" step="1" value="256">
+        </div>
+
+        <div class="field">
+          <label for="speckle">Speckle filter <output id="speckle-out" for="speckle">8</output></label>
+          <input type="range" id="speckle" min="0" max="32" step="1" value="8">
+        </div>
+
+        <div class="field">
+          <label for="layer-diff">Layer difference <output id="layer-diff-out" for="layer-diff">16</output></label>
+          <input type="range" id="layer-diff" min="0" max="128" step="1" value="16">
+        </div>
+
+        <div class="field">
+          <label for="upscale">Upscale before tracing</label>
+          <select id="upscale">
+            <option value="1">1× (off)</option>
+            <option value="2" selected>2× (default)</option>
+            <option value="3">3×</option>
+            <option value="4">4×</option>
+          </select>
+        </div>
+
+        <fieldset class="field">
+          <legend>Path mode</legend>
+          <label class="choice"><input type="radio" name="mode" value="spline" checked> Spline (smooth)</label>
+          <label class="choice"><input type="radio" name="mode" value="polygon"> Polygon</label>
+        </fieldset>
+
+        <div class="field">
+          <label class="choice"><input type="checkbox" id="grayscale"> Grayscale</label>
+          <label class="choice"><input type="checkbox" id="denoise"> Denoise (photos; softens pixel art)</label>
+        </div>
+
+        <fieldset class="field">
+          <legend>Background removal</legend>
+          <div class="subfield">
+            <label for="transparent">Mode</label>
+            <select id="transparent">
+              <option value="">Keep background</option>
+              <option value="auto">Auto-detect from corners</option>
+              <option value="custom">Pick a color</option>
+            </select>
+          </div>
+          <div class="subfield" id="knockout-color-field" hidden>
+            <label for="knockout-color">Color to remove</label>
+            <div class="color-row">
+              <input type="color" id="knockout-color" value="#ffffff">
+              <button type="button" id="pick-from-image" class="button button-secondary" aria-pressed="false" title="Click the image to sample the color (Esc cancels)">Pick from image</button>
+            </div>
+          </div>
+          <div class="subfield" id="fuzz-field" hidden>
+            <label for="fuzz">Match tolerance <output id="fuzz-out" for="fuzz">16</output></label>
+            <input type="range" id="fuzz" min="0" max="255" step="1" value="16">
+          </div>
+        </fieldset>
+      </aside>
+
+      <div class="preview-pane">
+        <div class="preview-toolbar">
+          <div class="view-toggle" role="group" aria-label="Preview view">
+            <button type="button" id="show-result" class="toggle" aria-pressed="true">Result</button>
+            <button type="button" id="show-source" class="toggle" aria-pressed="false">Source</button>
+          </div>
+          <p id="status" class="status" role="status" aria-live="polite"></p>
+        </div>
+
+        <div id="preview" class="preview checkerboard" tabindex="0" aria-label="Conversion preview">
+          <img id="result-view" alt="Traced SVG result">
+          <img id="source-view" alt="Source image" hidden>
+          <div id="tracing-veil" class="tracing-veil" hidden>
+            <p>Tracing…</p>
+          </div>
+        </div>
+
+        <div class="actions">
+          <dl class="stats" aria-label="Result statistics">
+            <div><dt>Paths</dt><dd id="stat-paths">–</dd></div>
+            <div><dt>Size</dt><dd id="stat-size">–</dd></div>
+            <div><dt>Time</dt><dd id="stat-time">–</dd></div>
+          </dl>
+          <div class="action-buttons">
+            <button type="button" id="copy-svg" class="button button-secondary" disabled>Copy SVG</button>
+            <a id="download" class="button button-primary" aria-disabled="true" download>Download SVG</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="statusbar">
+    <p>Traced by <a class="repo-link" href="https://github.com/visioncortex/vtracer" target="_blank" rel="noopener noreferrer">vtracer</a> compiled to WebAssembly. Images are processed locally and never uploaded.</p>
+    <span class="spacer"></span>
+    <a class="repo-link" href="https://github.com/bradsec/img2svg" target="_blank" rel="noopener noreferrer" aria-label="img2svg on GitHub">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+      <span>github.com/bradsec/img2svg</span>
+    </a>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

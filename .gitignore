@@ -1,0 +1,10 @@
+# Rust / wasm build
+wasm/target/
+
+# Node
+node_modules/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
