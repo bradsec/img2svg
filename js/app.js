@@ -1,6 +1,6 @@
 // UI wiring: state, controls, preview, download.
-import { decodeImage, rasterize, Tracer } from "./pipeline.js?v=3";
-import { countPaths, parseHexColor, PRESETS, toHexColor } from "./preprocess.js?v=3";
+import { decodeImage, rasterize, Tracer } from "./pipeline.js?v=4";
+import { countPaths, parseHexColor, PRESETS, toHexColor } from "./preprocess.js?v=4";
 
 const $ = (id) => document.getElementById(id);
 
@@ -61,7 +61,7 @@ const state = {
   loadToken: 0, // guards against overlapping loads (drop while decoding)
 };
 
-const tracer = new Tracer(new URL("./worker.js?v=3", import.meta.url));
+const tracer = new Tracer(new URL("./worker.js?v=4", import.meta.url));
 
 function currentSettings() {
   return {

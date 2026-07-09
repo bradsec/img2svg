@@ -1,5 +1,5 @@
 // Browser-side pipeline: decode, premultiplied upscale, worker round-trip.
-import { assertRasterBudget } from "./preprocess.js?v=3";
+import { assertRasterBudget } from "./preprocess.js?v=4";
 
 /**
  * Decode a File/Blob into an ImageBitmap. Throws a readable error for
