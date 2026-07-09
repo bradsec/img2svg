@@ -56,7 +56,6 @@ self.onmessage = async (event) => {
     if (settings.transparent === "edges") {
       stage("Removing background…");
       knockedOut = knockOutEdges(img, settings.fuzz);
-      if (knockedOut) hasAlpha = true;
     } else {
       let target = null;
       if (settings.transparent === "auto") target = detectBackgroundColor(img);
@@ -74,7 +73,6 @@ self.onmessage = async (event) => {
         }
         knockOutColor(img, color, fuzz);
         knockedOut = color;
-        hasAlpha = true;
       }
     }
 
