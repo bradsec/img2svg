@@ -1,6 +1,8 @@
-# img2svg web app
+# img2svg
 
-Browser-based raster to SVG converter. Same pipeline as the Python CLI in the repository root, running entirely client-side: [vtracer](https://github.com/visioncortex/vtracer) compiled to WebAssembly plus a Canvas/JS preprocessing stage. Images never leave the machine.
+Convert raster images to clean, scalable SVG vectors entirely in your browser. [vtracer](https://github.com/visioncortex/vtracer) compiled to WebAssembly plus a Canvas/JS preprocessing stage. Images never leave your machine: no upload, no backend.
+
+**Live app: https://bradsec.github.io/img2svg/**
 
 ## Features
 
@@ -18,7 +20,7 @@ Browser-based raster to SVG converter. Same pipeline as the Python CLI in the re
 
 ```
 index.html          app shell
-css/styles.css      design tokens + layout (dark, family-matched)
+css/styles.css      design tokens + layout
 js/preprocess.js    pure pixel/string ops (Node-testable, no browser APIs)
 js/pipeline.js      decode, premultiplied rasterize, worker round-trip
 js/worker.js        Web Worker: preprocessing + wasm trace off the main thread
@@ -38,4 +40,12 @@ npm run build:wasm       # rebuild pkg/ (needs rustup target wasm32-unknown-unkn
 
 ## Deploy
 
-Static files only; any static host works. The repository ships a GitHub Actions workflow that publishes this directory to GitHub Pages on push to main.
+Static files only. The GitHub Actions workflow runs the tests and publishes the repository to GitHub Pages on every push to main.
+
+## Browser support
+
+Requires OffscreenCanvas and module workers: Chrome/Edge 109+, Firefox 111+, Safari 16.4+.
+
+## License
+
+[MIT](LICENSE)
