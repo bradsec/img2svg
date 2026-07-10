@@ -8,6 +8,7 @@ import {
   detectBackgroundColor,
   dominantOpaqueColor,
   finalizeSvg,
+  fitTraceScale,
   knockOutColor,
   modeFilter,
   parseHexColor,
@@ -178,6 +179,26 @@ test("assertRasterBudget passes typical sizes, rejects oversize", () => {
   assert.equal(assertRasterBudget(4000, 4000, 2), MAX_TRACE_PIXELS);
   assert.throws(() => assertRasterBudget(8000, 8000, 4), /too large to trace at 4x/);
   assert.throws(() => assertRasterBudget(8000, 8001, 1), /Lower the upscale/);
+});
+
+test("fitTraceScale keeps requested upscale when it fits", () => {
+  assert.equal(fitTraceScale(1000, 1000, 2, 8_000_000), 2);
+  assert.equal(fitTraceScale(100, 100, 4, MAX_TRACE_PIXELS), 4);
+});
+
+test("fitTraceScale shrinks large images to the pixel budget", () => {
+  // 12.2 MP iPhone photo at 2x would be 48.8 MP; must fit 8 MP.
+  const scale = fitTraceScale(4032, 3024, 2, 8_000_000);
+  assert.ok(scale < 1, `expected sub-1 scale, got ${scale}`);
+  const pixels = 4032 * scale * 3024 * scale;
+  assert.ok(pixels <= 8_000_000, `scaled pixels ${pixels} exceed budget`);
+  // The fitted scale must also pass the hard budget assert.
+  assertRasterBudget(4032, 3024, scale);
+});
+
+test("fitTraceScale returns exactly the boundary scale", () => {
+  // 2000x2000 at 1x is exactly 4 MP: fits untouched.
+  assert.equal(fitTraceScale(2000, 2000, 1, 4_000_000), 1);
 });
 
 test("color-count presets resolve, cleanup scales inversely", () => {

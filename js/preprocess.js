@@ -9,6 +9,21 @@ export const ALPHA_THRESHOLD = 128;
 // fails with opaque platform errors, so fail early with a clear one.
 export const MAX_TRACE_PIXELS = 64_000_000;
 
+// Budget for phones and tablets. iOS kills a tab around 1-1.5 GB and a
+// trace peaks at several full RGBA copies plus vtracer's working set, so
+// a 12 MP camera photo at 2x (49 MP, ~200 MB per copy) crashes the page.
+// 8 MP keeps the peak in the low hundreds of MB.
+export const MOBILE_TRACE_PIXELS = 8_000_000;
+
+/**
+ * Largest scale factor (at most `upscale`) whose scaled pixel count fits
+ * maxPixels. Below 1 the image is downscaled before tracing; camera
+ * photos carry more pixels than a trace can use anyway.
+ */
+export function fitTraceScale(width, height, upscale, maxPixels) {
+  return Math.min(upscale, Math.sqrt(maxPixels / (width * height)));
+}
+
 /**
  * Throw a readable error when width x height at the given upscale factor
  * exceeds MAX_TRACE_PIXELS. Returns the upscaled pixel count otherwise.

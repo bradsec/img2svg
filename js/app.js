@@ -1,6 +1,22 @@
 // UI wiring: state, controls, preview, download.
-import { decodeImage, rasterize, Tracer } from "./pipeline.js?v=4";
-import { countPaths, parseHexColor, PRESETS, toHexColor } from "./preprocess.js?v=4";
+import { decodeImage, rasterize, Tracer } from "./pipeline.js?v=5";
+import {
+  countPaths,
+  fitTraceScale,
+  MAX_TRACE_PIXELS,
+  MOBILE_TRACE_PIXELS,
+  parseHexColor,
+  PRESETS,
+  toHexColor,
+} from "./preprocess.js?v=5";
+
+// Phones and tablets get a smaller trace budget: iOS kills the tab well
+// before the desktop budget allocates. iPadOS reports itself as MacIntel,
+// so touch points disambiguate it from actual Macs.
+const constrainedDevice =
+  /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const tracePixelBudget = constrainedDevice ? MOBILE_TRACE_PIXELS : MAX_TRACE_PIXELS;
 
 const $ = (id) => document.getElementById(id);
 
@@ -56,12 +72,12 @@ const state = {
   svg: null,
   downloadUrl: null,
   debounce: 0,
-  raster: null, // { upscale, imageData } cache, keyed by current bitmap
+  raster: null, // { scale, imageData } cache, keyed by current bitmap
   picking: false,
   loadToken: 0, // guards against overlapping loads (drop while decoding)
 };
 
-const tracer = new Tracer(new URL("./worker.js?v=4", import.meta.url));
+const tracer = new Tracer(new URL("./worker.js?v=5", import.meta.url));
 
 function currentSettings() {
   return {
@@ -137,8 +153,14 @@ async function retrace() {
   showError("");
   try {
     const settings = currentSettings();
-    if (!state.raster || state.raster.upscale !== settings.upscale) {
-      state.raster = { upscale: settings.upscale, imageData: rasterize(state.bitmap, settings.upscale) };
+    const scale = fitTraceScale(
+      state.bitmap.width,
+      state.bitmap.height,
+      settings.upscale,
+      tracePixelBudget,
+    );
+    if (!state.raster || state.raster.scale !== scale) {
+      state.raster = { scale, imageData: rasterize(state.bitmap, scale) };
     }
     const result = await tracer.trace(state.raster.imageData, settings, state.bitmap.width, state.bitmap.height);
     if (!result) return; // superseded by a newer request
@@ -155,9 +177,13 @@ async function retrace() {
     els.statPaths.textContent = paths.toLocaleString();
     els.statSize.textContent = kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb.toFixed(0)} KB`;
     els.statTime.textContent = `${result.ms.toLocaleString()} ms`;
-    els.status.textContent = result.knockedOut
+    let statusText = result.knockedOut
       ? `Traced ${paths.toLocaleString()} paths. Removed background rgb(${result.knockedOut.join(", ")}).`
       : `Traced ${paths.toLocaleString()} paths.`;
+    if (scale < settings.upscale) {
+      statusText += ` Traced at ${scale.toFixed(2)}x to fit device memory.`;
+    }
+    els.status.textContent = statusText;
 
     els.download.href = state.downloadUrl;
     els.download.download = `${state.fileName.replace(/\.[^.]+$/, "")}.svg`;

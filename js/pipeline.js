@@ -1,5 +1,5 @@
 // Browser-side pipeline: decode, premultiplied upscale, worker round-trip.
-import { assertRasterBudget } from "./preprocess.js?v=4";
+import { assertRasterBudget } from "./preprocess.js?v=5";
 
 /**
  * Decode a File/Blob into an ImageBitmap. Throws a readable error for
@@ -14,17 +14,18 @@ export async function decodeImage(file) {
 }
 
 /**
- * Draw the bitmap at upscale factor and return raw RGBA pixels.
+ * Draw the bitmap at the given scale factor and return raw RGBA pixels.
  * Canvas interpolates in premultiplied alpha space, which is exactly the
- * halo-free upscale the pipeline needs for transparent images.
+ * halo-free resample the pipeline needs for transparent images. Scale may
+ * be fractional or below 1 (device memory fit).
  */
-export function rasterize(bitmap, upscale) {
-  assertRasterBudget(bitmap.width, bitmap.height, upscale);
-  const width = bitmap.width * upscale;
-  const height = bitmap.height * upscale;
+export function rasterize(bitmap, scale) {
+  assertRasterBudget(bitmap.width, bitmap.height, scale);
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
   const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext("2d");
-  ctx.imageSmoothingEnabled = upscale > 1;
+  ctx.imageSmoothingEnabled = scale !== 1;
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(bitmap, 0, 0, width, height);
   return ctx.getImageData(0, 0, width, height);
