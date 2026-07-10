@@ -8,3 +8,8 @@ node_modules/
 .DS_Store
 .idea/
 .vscode/
+
+# Local scratch / tooling artifacts
+_diag.png
+.playwright-mcp/
+.claude/

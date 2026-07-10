@@ -204,7 +204,7 @@ dependencies = [
 
 [[package]]
 name = "img2svg-wasm"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "visioncortex",
  "vtracer",
