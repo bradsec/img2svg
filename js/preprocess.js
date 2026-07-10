@@ -205,6 +205,30 @@ export function snapToImageColor(img, [r, g, b], maxDistance) {
 }
 
 /**
+ * Apply the selected background-removal mode. `transparent` is "edges",
+ * "auto", an [r, g, b] color, or null/"" for none. For quantized images
+ * the target snaps to the nearest palette color so the whole flat
+ * cluster goes; fuzz still applies around the snapped color, because an
+ * anti-aliased boundary quantizes into several near-background shades
+ * that would otherwise survive as a halo outline around the subject.
+ * Returns the removed color, or null when nothing was removed.
+ */
+export function removeBackground(img, transparent, fuzz, quantized) {
+  if (transparent === "edges") return knockOutEdges(img, fuzz);
+  let target = null;
+  if (transparent === "auto") target = detectBackgroundColor(img);
+  else if (Array.isArray(transparent)) target = transparent;
+  if (!target) return null;
+  let color = target;
+  if (quantized) {
+    const snapped = snapToImageColor(img, target, Math.max(fuzz, 48));
+    if (snapped) color = snapped;
+  }
+  knockOutColor(img, color, fuzz);
+  return color;
+}
+
+/**
  * Threshold alpha to 0 or 255 so anti-aliased edge fringe cannot fragment
  * the trace into junk paths. Mutates img in place.
  */

@@ -14,6 +14,7 @@ import {
   modeFilter,
   parseHexColor,
   quantize,
+  removeBackground,
   resolveSettings,
   snapToImageColor,
   toGrayscale,
@@ -225,6 +226,54 @@ test("resolveSettings: explicit beats preset beats defaults", () => {
   assert.equal(d.colors, 256);
   assert.equal(d.speckle, 8);
   assert.equal(d.layerDiff, 16);
+});
+
+test("removeBackground honors fuzz after palette snap (halo regression)", () => {
+  // Quantized-style image: white bg cluster, near-white halo shade from
+  // an anti-aliased boundary, dark subject. Snap resolves to the white
+  // cluster; fuzz must still remove the halo shade or it survives as an
+  // outline around the subject.
+  const img = makeImage(3, 1, [255, 255, 255, 255]);
+  setPixel(img, 1, 0, [240, 240, 240, 255]); // halo shade
+  setPixel(img, 2, 0, [30, 30, 30, 255]); // subject
+  const removed = removeBackground(img, [250, 250, 250], 16, true);
+  assert.deepEqual(removed, [255, 255, 255]); // snapped to palette white
+  assert.equal(getPixel(img, 0, 0)[3], 0); // background removed
+  assert.equal(getPixel(img, 1, 0)[3], 0); // halo within fuzz removed
+  assert.equal(getPixel(img, 2, 0)[3], 255); // subject kept
+});
+
+test("removeBackground with fuzz 0 removes only the exact cluster", () => {
+  const img = makeImage(2, 1, [255, 255, 255, 255]);
+  setPixel(img, 1, 0, [240, 240, 240, 255]);
+  removeBackground(img, [255, 255, 255], 0, true);
+  assert.equal(getPixel(img, 0, 0)[3], 0);
+  assert.equal(getPixel(img, 1, 0)[3], 255);
+});
+
+test("removeBackground auto mode detects the corner color", () => {
+  const img = makeImage(4, 4, [10, 20, 30, 255]);
+  setPixel(img, 2, 2, [200, 0, 0, 255]);
+  const removed = removeBackground(img, "auto", 0, false);
+  assert.deepEqual(removed, [10, 20, 30]);
+  assert.equal(getPixel(img, 0, 0)[3], 0);
+  assert.equal(getPixel(img, 2, 2)[3], 255);
+});
+
+test("removeBackground edges mode flood fills from the border", () => {
+  const img = makeImage(5, 5, [255, 255, 255, 255]);
+  setPixel(img, 2, 2, [0, 0, 0, 255]);
+  const removed = removeBackground(img, "edges", 16, false);
+  assert.deepEqual(removed, [255, 255, 255]);
+  assert.equal(getPixel(img, 0, 0)[3], 0);
+  assert.equal(getPixel(img, 2, 2)[3], 255);
+});
+
+test("removeBackground returns null when off or nothing to remove", () => {
+  const img = makeImage(2, 2, [255, 255, 255, 255]);
+  assert.equal(removeBackground(img, null, 16, false), null);
+  const clear = makeImage(2, 2, [0, 0, 0, 0]);
+  assert.equal(removeBackground(clear, "auto", 16, false), null);
 });
 
 test("knockOutEdges removes border-connected background only", async () => {

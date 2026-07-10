@@ -1,17 +1,14 @@
 // Web Worker: runs preprocessing + wasm tracing off the main thread.
-import init, { trace } from "../pkg/img2svg_wasm.js?v=10";
+import init, { trace } from "../pkg/img2svg_wasm.js?v=11";
 import {
   binarizeAlpha,
   boxBlur,
-  detectBackgroundColor,
   finalizeSvg,
-  knockOutColor,
-  knockOutEdges,
   modeFilter,
   quantize,
-  snapToImageColor,
+  removeBackground,
   toGrayscale,
-} from "./preprocess.js?v=10";
+} from "./preprocess.js?v=11";
 
 const ready = init();
 
@@ -50,30 +47,11 @@ self.onmessage = async (event) => {
     // Background knockout runs AFTER quantization so the removed color is
     // one of the final palette colors: off-white highlights that collapse
     // into the background's palette slot get removed with it, matching
-    // "N colors where one is transparent". Snapping to the nearest
-    // palette color removes the whole flat cluster exactly.
+    // "N colors where one is transparent".
     let knockedOut = null;
-    if (settings.transparent === "edges") {
+    if (settings.transparent) {
       stage("Removing background…");
-      knockedOut = knockOutEdges(img, settings.fuzz);
-    } else {
-      let target = null;
-      if (settings.transparent === "auto") target = detectBackgroundColor(img);
-      else if (Array.isArray(settings.transparent)) target = settings.transparent;
-      if (target) {
-        stage("Removing background…");
-        let color = target;
-        let fuzz = settings.fuzz;
-        if (quantized) {
-          const snapped = snapToImageColor(img, target, Math.max(fuzz, 48));
-          if (snapped) {
-            color = snapped;
-            fuzz = 0; // quantized regions are exact
-          }
-        }
-        knockOutColor(img, color, fuzz);
-        knockedOut = color;
-      }
+      knockedOut = removeBackground(img, settings.transparent, settings.fuzz, quantized);
     }
 
     stage("Tracing vectors…");
