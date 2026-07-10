@@ -9,6 +9,7 @@ import {
   dominantOpaqueColor,
   finalizeSvg,
   fitTraceScale,
+  MAX_TRACE_SIDE,
   knockOutColor,
   modeFilter,
   parseHexColor,
@@ -181,24 +182,31 @@ test("assertRasterBudget passes typical sizes, rejects oversize", () => {
   assert.throws(() => assertRasterBudget(8000, 8001, 1), /Lower the upscale/);
 });
 
-test("fitTraceScale keeps requested upscale when it fits", () => {
-  assert.equal(fitTraceScale(1000, 1000, 2, 8_000_000), 2);
-  assert.equal(fitTraceScale(100, 100, 4, MAX_TRACE_PIXELS), 4);
+test("fitTraceScale keeps requested upscale for small images", () => {
+  assert.equal(fitTraceScale(1000, 600, 2, 2048), 2); // 2000 <= 2048
+  assert.equal(fitTraceScale(512, 512, 4, 2048), 4); // lands exactly on 2048
 });
 
-test("fitTraceScale shrinks large images to the pixel budget", () => {
-  // 12.2 MP iPhone photo at 2x would be 48.8 MP; must fit 8 MP.
-  const scale = fitTraceScale(4032, 3024, 2, 8_000_000);
+test("fitTraceScale caps mid-size images at the side limit", () => {
+  // 1500 px source at 2x would be 3000: partial upscale to 2048.
+  const scale = fitTraceScale(1500, 1000, 2, 2048);
+  assert.equal(scale, 2048 / 1500);
+  assert.equal(Math.round(1500 * scale), 2048);
+});
+
+test("fitTraceScale downscales large photos, proportions kept", () => {
+  // 12.2 MP iPhone photo: longest side 4032 reduces to 2048.
+  const scale = fitTraceScale(4032, 3024, 2, 2048);
   assert.ok(scale < 1, `expected sub-1 scale, got ${scale}`);
-  const pixels = 4032 * scale * 3024 * scale;
-  assert.ok(pixels <= 8_000_000, `scaled pixels ${pixels} exceed budget`);
+  assert.equal(Math.round(4032 * scale), 2048);
+  // Portrait orientation uses the longest side too.
+  assert.equal(fitTraceScale(3024, 4032, 2, 2048), 2048 / 4032);
   // The fitted scale must also pass the hard budget assert.
   assertRasterBudget(4032, 3024, scale);
 });
 
-test("fitTraceScale returns exactly the boundary scale", () => {
-  // 2000x2000 at 1x is exactly 4 MP: fits untouched.
-  assert.equal(fitTraceScale(2000, 2000, 1, 4_000_000), 1);
+test("fitTraceScale defaults to MAX_TRACE_SIDE", () => {
+  assert.equal(fitTraceScale(4096, 4096, 1), MAX_TRACE_SIDE / 4096);
 });
 
 test("color-count presets resolve, cleanup scales inversely", () => {

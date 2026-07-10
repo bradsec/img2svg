@@ -1,22 +1,13 @@
 // UI wiring: state, controls, preview, download.
-import { decodeImage, rasterize, Tracer } from "./pipeline.js?v=5";
+import { decodeImage, rasterize, Tracer } from "./pipeline.js?v=6";
 import {
   countPaths,
   fitTraceScale,
-  MAX_TRACE_PIXELS,
-  MOBILE_TRACE_PIXELS,
+  MAX_TRACE_SIDE,
   parseHexColor,
   PRESETS,
   toHexColor,
-} from "./preprocess.js?v=5";
-
-// Phones and tablets get a smaller trace budget: iOS kills the tab well
-// before the desktop budget allocates. iPadOS reports itself as MacIntel,
-// so touch points disambiguate it from actual Macs.
-const constrainedDevice =
-  /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
-  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-const tracePixelBudget = constrainedDevice ? MOBILE_TRACE_PIXELS : MAX_TRACE_PIXELS;
+} from "./preprocess.js?v=6";
 
 const $ = (id) => document.getElementById(id);
 
@@ -77,7 +68,7 @@ const state = {
   loadToken: 0, // guards against overlapping loads (drop while decoding)
 };
 
-const tracer = new Tracer(new URL("./worker.js?v=5", import.meta.url));
+const tracer = new Tracer(new URL("./worker.js?v=6", import.meta.url));
 
 function currentSettings() {
   return {
@@ -153,12 +144,7 @@ async function retrace() {
   showError("");
   try {
     const settings = currentSettings();
-    const scale = fitTraceScale(
-      state.bitmap.width,
-      state.bitmap.height,
-      settings.upscale,
-      tracePixelBudget,
-    );
+    const scale = fitTraceScale(state.bitmap.width, state.bitmap.height, settings.upscale);
     if (!state.raster || state.raster.scale !== scale) {
       state.raster = { scale, imageData: rasterize(state.bitmap, scale) };
     }
@@ -181,7 +167,7 @@ async function retrace() {
       ? `Traced ${paths.toLocaleString()} paths. Removed background rgb(${result.knockedOut.join(", ")}).`
       : `Traced ${paths.toLocaleString()} paths.`;
     if (scale < settings.upscale) {
-      statusText += ` Traced at ${scale.toFixed(2)}x to fit device memory.`;
+      statusText += ` Traced at ${scale.toFixed(2)}x (longest side capped at ${MAX_TRACE_SIDE} px).`;
     }
     els.status.textContent = statusText;
 

@@ -14,7 +14,7 @@ Convert raster images to clean, scalable SVG vectors entirely in your browser. [
 - Background removal: auto-detect from corners, hex color, or eyedropper pick from the image
 - Presets matched to print practice: T-shirt 5 colors (screen-print spot-color sweet spot), Poster 6, Detailed 8, Simple 3, Logo 2 (two-color marks, stencils)
 - Live re-trace on setting changes, SVG download and clipboard copy
-- Large photos automatically downscale on phones and tablets to fit device memory (the status line reports the applied scale)
+- Trace size capped at 2048 px on the longest side: small images upscale for smoother curves, large photos downscale proportionally (the status line reports the applied scale)
 - Responsive layout, keyboard operable, WCAG AA contrast
 
 ## Structure
