@@ -1,12 +1,12 @@
 // UI wiring: state, controls, preview, download.
-import { capBitmap, decodeImage, rasterize, Tracer } from "./pipeline.js?v=8";
+import { capBitmap, decodeImage, rasterize, Tracer } from "./pipeline.js?v=9";
 import {
   countPaths,
   fitTraceScale,
   parseHexColor,
   PRESETS,
   toHexColor,
-} from "./preprocess.js?v=8";
+} from "./preprocess.js?v=9";
 
 const $ = (id) => document.getElementById(id);
 
@@ -69,7 +69,7 @@ const state = {
   loadToken: 0, // guards against overlapping loads (drop while decoding)
 };
 
-const tracer = new Tracer(new URL("./worker.js?v=8", import.meta.url));
+const tracer = new Tracer(new URL("./worker.js?v=9", import.meta.url));
 
 function currentSettings() {
   return {
@@ -398,17 +398,31 @@ els.preview.addEventListener("keydown", (e) => {
   e.preventDefault();
 });
 
-const drag = { active: false, id: 0, startX: 0, startY: 0, baseTx: 0, baseTy: 0 };
+// One pointer pans; two pointers pinch-zoom around their midpoint (and
+// pan with it, so the standard touch pinch-drag combo works). `gesture`
+// holds the previous frame: { x, y } while panning, { dist, midX, midY }
+// while pinching; deltas are applied incrementally.
+const pointers = new Map();
+let gesture = null;
+
+function pinchState() {
+  const [a, b] = [...pointers.values()];
+  return {
+    dist: Math.hypot(b.x - a.x, b.y - a.y),
+    midX: (a.x + b.x) / 2,
+    midY: (a.y + b.y) / 2,
+  };
+}
 
 els.preview.addEventListener("pointerdown", (e) => {
   if (state.picking || e.button !== 0) return;
-  drag.active = true;
-  drag.id = e.pointerId;
-  drag.startX = e.clientX;
-  drag.startY = e.clientY;
-  drag.baseTx = view.tx;
-  drag.baseTy = view.ty;
-  els.preview.classList.add("panning");
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 1) {
+    gesture = { x: e.clientX, y: e.clientY };
+    els.preview.classList.add("panning");
+  } else if (pointers.size === 2) {
+    gesture = pinchState();
+  }
   try {
     els.preview.setPointerCapture(e.pointerId);
   } catch {
@@ -417,16 +431,35 @@ els.preview.addEventListener("pointerdown", (e) => {
 });
 
 els.preview.addEventListener("pointermove", (e) => {
-  if (!drag.active || e.pointerId !== drag.id) return;
-  view.tx = drag.baseTx + (e.clientX - drag.startX);
-  view.ty = drag.baseTy + (e.clientY - drag.startY);
-  applyView();
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 1) {
+    view.tx += e.clientX - gesture.x;
+    view.ty += e.clientY - gesture.y;
+    gesture = { x: e.clientX, y: e.clientY };
+    applyView();
+  } else if (pointers.size === 2) {
+    const now = pinchState();
+    const rect = els.preview.getBoundingClientRect();
+    if (gesture.dist > 0) {
+      zoomAt(now.dist / gesture.dist, now.midX - rect.left, now.midY - rect.top);
+    }
+    view.tx += now.midX - gesture.midX;
+    view.ty += now.midY - gesture.midY;
+    applyView();
+    gesture = now;
+  }
 });
 
 for (const type of ["pointerup", "pointercancel"]) {
   els.preview.addEventListener(type, (e) => {
-    if (drag.active && e.pointerId === drag.id) {
-      drag.active = false;
+    if (!pointers.delete(e.pointerId)) return;
+    if (pointers.size === 1) {
+      // Pinch ended with one finger still down: continue as a pan.
+      const [p] = pointers.values();
+      gesture = { x: p.x, y: p.y };
+    } else if (pointers.size === 0) {
+      gesture = null;
       els.preview.classList.remove("panning");
     }
   });
