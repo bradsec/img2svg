@@ -2,8 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   analyzeFlatness,
+  applyExportOptions,
   assertRasterBudget,
   DEFAULTS,
+  EXPORT_PROFILES,
+  fillTransparent,
   MAX_TRACE_PIXELS,
   binarizeAlpha,
   countPaths,
@@ -326,6 +329,54 @@ test("finalizeSvg groups same-fill paths in vtracer output", () => {
   assert.match(out, /width="10" height="10" viewBox="0 0 20 20"/);
   assert.match(out, /<g fill="#010101">/);
   assert.equal(countPaths(out), 2);
+});
+
+test("applyExportOptions rewrites physical size keeping viewBox", () => {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 400 200">\n<path d="M0 0"/>\n</svg>';
+  const out = applyExportOptions(svg, { physicalWidth: 100, physicalUnit: "mm" });
+  assert.match(out, /width="100mm" height="50mm" viewBox="0 0 400 200"/);
+});
+
+test("applyExportOptions rounds physical height to 2 decimals", () => {
+  const svg = '<svg width="300" height="200" viewBox="0 0 300 200">\n</svg>';
+  const out = applyExportOptions(svg, { physicalWidth: 10, physicalUnit: "in" });
+  assert.match(out, /width="10in" height="6\.67in"/);
+});
+
+test("applyExportOptions adds role and title as first child, escaped", () => {
+  const svg = '<svg width="10" height="10" viewBox="0 0 10 10">\n<path d="M0 0"/>\n</svg>';
+  const out = applyExportOptions(svg, { title: "a <b> & c" });
+  assert.match(out, /<svg[^>]* role="img">\n<title>a &lt;b&gt; &amp; c<\/title>\n<path/);
+});
+
+test("applyExportOptions minify strips xml declaration and comments", () => {
+  const svg = '<?xml version="1.0" encoding="UTF-8"?>\n<!-- Generator: visioncortex VTracer 0.6.5 -->\n<svg width="10" height="10" viewBox="0 0 10 10">\n</svg>';
+  const out = applyExportOptions(svg, { minify: true });
+  assert.equal(out, '<svg width="10" height="10" viewBox="0 0 10 10">\n</svg>');
+});
+
+test("applyExportOptions with no options returns input unchanged", () => {
+  const svg = '<svg width="10" height="10" viewBox="0 0 10 10">\n</svg>';
+  assert.equal(applyExportOptions(svg, {}), svg);
+});
+
+test("fillTransparent paints transparent pixels opaque with the color", () => {
+  const img = makeImage(2, 1, [10, 20, 30, 0]);
+  setPixel(img, 1, 0, [40, 40, 40, 255]);
+  fillTransparent(img, [255, 255, 255]);
+  assert.deepEqual(getPixel(img, 0, 0), [255, 255, 255, 255]);
+  assert.deepEqual(getPixel(img, 1, 0), [40, 40, 40, 255]);
+});
+
+test("EXPORT_PROFILES cover expected keys with sane values", () => {
+  for (const name of ["web", "balanced", "detail", "print", "laser"]) {
+    const p = EXPORT_PROFILES[name];
+    assert.ok(p, `${name} profile exists`);
+    assert.ok(p.pathPrecision >= 1 && p.pathPrecision <= 4);
+    assert.ok(p.colors >= 2 && p.colors <= 256);
+  }
+  assert.equal(EXPORT_PROFILES.laser.stencil, true);
+  assert.equal(EXPORT_PROFILES.web.minify, true);
 });
 
 test("countPaths counts path elements", () => {

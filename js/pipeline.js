@@ -1,5 +1,5 @@
 // Browser-side pipeline: decode, premultiplied upscale, worker round-trip.
-import { assertRasterBudget, MAX_TRACE_SIDE } from "./preprocess.js?v=24";
+import { assertRasterBudget, MAX_TRACE_SIDE } from "./preprocess.js?v=25";
 
 export async function sniffImageSize(file) {
   const bytes = new Uint8Array(await file.slice(0, 256 * 1024).arrayBuffer());
@@ -90,11 +90,11 @@ export function fitDecodeSize(width, height, maxSide = MAX_TRACE_SIDE) {
  * Decode a File/Blob into an ImageBitmap. Throws a readable error for
  * unsupported or corrupt files.
  */
-export async function decodeImage(file) {
+export async function decodeImage(file, maxSide = MAX_TRACE_SIDE) {
   try {
     const size = await sniffImageSize(file);
     if (!size) return await createImageBitmap(file);
-    const resized = fitDecodeSize(size.width, size.height);
+    const resized = fitDecodeSize(size.width, size.height, maxSide);
     return await createImageBitmap(file, {
       resizeWidth: resized.width,
       resizeHeight: resized.height,
@@ -112,8 +112,8 @@ export async function decodeImage(file) {
  * hold ~400 MB, enough to kill an iOS tab on its own. Returns the bitmap
  * unchanged when it already fits.
  */
-export async function capBitmap(bitmap) {
-  const scale = MAX_TRACE_SIDE / Math.max(bitmap.width, bitmap.height);
+export async function capBitmap(bitmap, maxSide = MAX_TRACE_SIDE) {
+  const scale = maxSide / Math.max(bitmap.width, bitmap.height);
   if (scale >= 1) return bitmap;
   const width = Math.max(1, Math.round(bitmap.width * scale));
   const height = Math.max(1, Math.round(bitmap.height * scale));

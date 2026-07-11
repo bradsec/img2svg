@@ -1,18 +1,24 @@
 // Web Worker: runs preprocessing + wasm tracing off the main thread.
-import init, { trace } from "../pkg/rastertrace_wasm.js?v=24";
+import init, { trace } from "../pkg/rastertrace_wasm.js?v=25";
 import {
   binarizeAlpha,
   defringeAlpha,
   erodeAlpha,
+  fillTransparent,
   finalizeSvg,
   medianFilter,
   modeFilter,
   quantize,
   removeBackground,
   toGrayscale,
-} from "./preprocess.js?v=24";
+} from "./preprocess.js?v=25";
 
-const ready = init();
+// Explicit versioned URL: the glue's own wasm fetch drops the ?v= query,
+// so a rebuilt binary would otherwise be served from stale browser cache
+// against new glue (positional args shift into garbage).
+const ready = init({
+  module_or_path: new URL("../pkg/rastertrace_wasm_bg.wasm?v=25", import.meta.url),
+});
 
 self.onmessage = async (event) => {
   const { id, img, settings, sourceWidth, sourceHeight } = event.data;
@@ -31,7 +37,9 @@ self.onmessage = async (event) => {
       }
     }
 
-    if (settings.grayscale) toGrayscale(img);
+    // Stencil traces brightness only, so grayscale first makes the
+    // binary threshold a luma cut instead of a red-channel cut.
+    if (settings.grayscale || settings.stencil) toGrayscale(img);
     if (hasAlpha) binarizeAlpha(img);
     // Optional denoise for photographic sources; destroys intentional
     // dither/pixel-art texture, so it is opt-in. Median, not blur: it
@@ -40,7 +48,8 @@ self.onmessage = async (event) => {
       stage("Denoising…");
       medianFilter(img, 2);
     }
-    const quantized = settings.colors < 256;
+    // Binary mode ignores the palette entirely; skip the quantize cost.
+    const quantized = settings.colors < 256 && !settings.stencil;
     if (quantized) {
       stage(`Reducing to ${settings.colors} colors…`);
       quantize(img, settings.colors);
@@ -69,6 +78,10 @@ self.onmessage = async (event) => {
       }
     }
 
+    // Binary tracing keys on r < 128 and ignores alpha: transparent
+    // areas (source alpha or knockout) must read as white background.
+    if (settings.stencil) fillTransparent(img, [255, 255, 255]);
+
     stage("Tracing vectors…");
     const svg = trace(
       new Uint8Array(img.data.buffer),
@@ -76,14 +89,15 @@ self.onmessage = async (event) => {
       img.height,
       settings.mode,
       settings.hierarchical || "stacked", // stacked layers vs cutout tiles
+      settings.stencil ? "binary" : "color",
       settings.speckle,
       8, // color_precision: colors already reduced above, like the CLI
       settings.layerDiff,
       settings.cornerThreshold ?? 60, // degrees; lower keeps corners sharper
-      4.0, // length_threshold
+      settings.lengthThreshold ?? 4.0,
       10, // max_iterations
-      45, // splice_threshold
-      3, // path_precision
+      settings.spliceThreshold ?? 45,
+      settings.pathPrecision ?? 3,
     );
 
     const finalSvg = finalizeSvg(svg, sourceWidth, sourceHeight);

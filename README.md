@@ -12,6 +12,11 @@ Convert raster images to clean, scalable SVG vectors entirely in your browser. [
 - 3x3 majority filter to clean quantization dither
 - Optional edge-preserving median denoise for photographic sources
 - Background removal: auto-detect from border sampling, hex color, or eyedropper pick from the image; perceptual match tolerance; edge trim chokes the cutout and defringe repaints leftover fringe without shrinking thin details
+- Purpose-based export profiles: Web optimized, Balanced, High detail, Print & cutting, and Laser stencil set colors, cleanup, path detail, and output options together (all controls stay editable)
+- Stencil mode: true black/white binary tracing for laser cutting, stamps, and silhouettes
+- Physical size export: write real-world width/height (mm, cm, in) into the SVG for print and cutting software, viewBox preserved
+- Minified output option, or accessible output with `role="img"` and a `<title>` from the file name
+- Advanced tracing controls: path coordinate precision, curve segment length, spline splitting
 - Color-count presets from 2 to 256 with matched cleanup levels: fewer colors get more aggressive speckle and layer cleanup for flat print-style output
 - Flat-image detection: logos, text, and pixel art are detected at load; the color count snaps to the image, with every control still editable.
 - Crisp edges toggle: sharper corner tracing for hard-edged sources, available manually for any image.
@@ -25,7 +30,8 @@ Convert raster images to clean, scalable SVG vectors entirely in your browser. [
 - Live re-trace on setting changes, SVG download and clipboard copy
 - Zoomable preview: pinch, scroll wheel, or buttons; drag to pan
 - Rotate the loaded image in 90 degree steps
-- Trace size capped at 2048 px on the longest side: small images upscale for smoother curves, large photos downscale proportionally (the status line reports the applied scale)
+- Trace size capped at 2048 px on the longest side: small images upscale for smoother curves, large photos downscale proportionally (the status line reports the applied scale). Opt-in Ultra mode raises the cap to 4096 px for the cleanest fabrication exports (slower, high memory)
+- Guidance built in: photographic sources and high path counts get status-line suggestions, and an SVG export guide sits under the preview
 - Responsive layout, keyboard operable, WCAG AA contrast
 
 ## Structure

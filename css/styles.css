@@ -185,6 +185,62 @@ select, input[type="color"] {
 input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 24px; }
 input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
 
+/* ---------- Accordion panels in the controls column ---------- */
+.panel {
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.panel > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--r-sm);
+  user-select: none;
+}
+
+.panel > summary::-webkit-details-marker { display: none; }
+
+.panel > summary::after {
+  content: "+";
+  color: var(--text-faint);
+  font-weight: 400;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.panel[open] > summary::after { content: "\2212"; }
+
+.panel > summary:hover { color: var(--accent); }
+
+.panel > summary:focus-visible { outline: none; box-shadow: var(--ring); }
+
+.panel-body {
+  display: grid;
+  gap: 14px;
+  padding: 2px 12px 12px;
+}
+
+/* Nested advanced block: quieter than a top-level panel */
+details.advanced > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  user-select: none;
+}
+
+details.advanced > summary:hover { color: var(--accent); }
+
+details.advanced[open] { display: grid; gap: 10px; }
+
 /* ---------- Preview ---------- */
 .preview-pane { display: grid; gap: 12px; min-width: 0; }
 
@@ -207,6 +263,34 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
 .toggle[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 
 .status { margin: 0; color: var(--text-dim); font-size: 13px; }
+
+/* ---------- SVG export guide under the canvas ---------- */
+.export-help {
+  padding: 16px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+}
+
+.export-help h2 {
+  margin: 0 0 12px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.help-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.help-grid h3 { margin: 0 0 4px; font-size: 13px; }
+
+.help-grid p { margin: 0; font-size: 13px; color: var(--text-dim); }
+
+.help-grid em { font-style: normal; color: var(--text); }
 
 .preview {
   position: relative;

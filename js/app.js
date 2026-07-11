@@ -1,15 +1,18 @@
 // UI wiring: state, controls, preview, download.
-import { capBitmap, decodeImage, rasterize, rotateBitmap, Tracer } from "./pipeline.js?v=24";
+import { capBitmap, decodeImage, rasterize, rotateBitmap, Tracer } from "./pipeline.js?v=25";
 import {
   analyzeFlatness,
+  applyExportOptions,
   countPaths,
   DEFAULTS,
+  EXPORT_PROFILES,
   fitTraceScale,
   MAX_TRACE_SIDE,
+  MAX_TRACE_SIDE_ULTRA,
   parseHexColor,
   PRESETS,
   toHexColor,
-} from "./preprocess.js?v=24";
+} from "./preprocess.js?v=25";
 
 const $ = (id) => document.getElementById(id);
 
@@ -22,6 +25,7 @@ const els = {
   replaceImage: $("replace-image"),
   rotateLeft: $("rotate-left"),
   rotateRight: $("rotate-right"),
+  exportProfile: $("export-profile"),
   preset: $("preset"),
   colors: $("colors"),
   colorsOut: $("colors-out"),
@@ -33,6 +37,13 @@ const els = {
   cornerThresholdOut: $("corner-threshold-out"),
   hierarchical: $("hierarchical"),
   upscale: $("upscale"),
+  pathPrecision: $("path-precision"),
+  pathPrecisionOut: $("path-precision-out"),
+  lengthThreshold: $("length-threshold"),
+  lengthThresholdOut: $("length-threshold-out"),
+  spliceThreshold: $("splice-threshold"),
+  spliceThresholdOut: $("splice-threshold-out"),
+  stencil: $("stencil"),
   grayscale: $("grayscale"),
   crisp: $("crisp"),
   transparent: $("transparent"),
@@ -49,6 +60,12 @@ const els = {
   defringeField: $("defringe-field"),
   defringe: $("defringe"),
   defringeOut: $("defringe-out"),
+  exportSize: $("export-size"),
+  physicalSizeField: $("physical-size-field"),
+  physicalWidth: $("physical-width"),
+  physicalUnit: $("physical-unit"),
+  physicalHeightOut: $("physical-height-out"),
+  minify: $("minify"),
   showResult: $("show-result"),
   showSource: $("show-source"),
   greenScreen: $("green-screen"),
@@ -72,11 +89,15 @@ const els = {
 };
 
 const state = {
-  bitmap: null, // capped at MAX_TRACE_SIDE; source dims kept separately
+  bitmap: null, // capped at decodedSide; source dims kept separately
+  file: null, // original file, kept for the Ultra re-decode
+  rotation: 0, // quarter turns applied since load, for re-decode replay
+  decodedSide: MAX_TRACE_SIDE, // cap used when bitmap was decoded
   sourceWidth: 0,
   sourceHeight: 0,
   fileName: "image",
   sourceUrl: null,
+  svgRaw: null, // worker output before export post-processing
   svg: null,
   downloadUrl: null,
   debounce: 0,
@@ -86,7 +107,7 @@ const state = {
   flatNote: null, // status prefix when load-time detection fired
 };
 
-const tracer = new Tracer(new URL("./worker.js?v=24", import.meta.url));
+const tracer = new Tracer(new URL("./worker.js?v=25", import.meta.url));
 
 function currentSettings() {
   return {
@@ -95,11 +116,17 @@ function currentSettings() {
     layerDiff: Number(els.layerDiff.value),
     cornerThreshold: Number(els.cornerThreshold.value),
     hierarchical: els.hierarchical.value,
-    upscale: els.upscale.value === "auto" ? "auto" : Number(els.upscale.value),
+    upscale: els.upscale.value === "auto" || els.upscale.value === "ultra"
+      ? els.upscale.value
+      : Number(els.upscale.value),
     mode: document.querySelector('input[name="mode"]:checked').value,
     grayscale: els.grayscale.checked,
     denoise: els.denoise.checked,
     crisp: els.crisp.checked,
+    stencil: els.stencil.checked,
+    pathPrecision: Number(els.pathPrecision.value),
+    lengthThreshold: Number(els.lengthThreshold.value),
+    spliceThreshold: Number(els.spliceThreshold.value),
     transparent:
       els.transparent.value === "auto" || els.transparent.value === "edges"
         ? els.transparent.value
@@ -121,6 +148,36 @@ function updateOutputs() {
   els.fuzzOut.textContent = els.fuzz.value;
   els.edgeTrimOut.textContent = els.edgeTrim.value;
   els.defringeOut.textContent = els.defringe.value;
+  els.pathPrecisionOut.textContent = els.pathPrecision.value;
+  els.lengthThresholdOut.textContent = els.lengthThreshold.value;
+  els.spliceThresholdOut.textContent = els.spliceThreshold.value;
+}
+
+/**
+ * Apply a purpose-based export profile: moves the visible controls (like
+ * presets do) and sets the export post-processing toggles. Everything
+ * stays user-editable afterwards.
+ */
+function applyExportProfile(name) {
+  const profile = EXPORT_PROFILES[name];
+  if (!profile) return;
+  els.colors.value = String(profile.colors);
+  els.speckle.value = String(profile.speckle);
+  els.layerDiff.value = String(profile.layerDiff);
+  els.cornerThreshold.value = String(profile.cornerThreshold);
+  document.querySelector(`input[name="mode"][value="${profile.mode}"]`).checked = true;
+  els.hierarchical.value = profile.hierarchical;
+  els.upscale.value = String(profile.upscale);
+  els.stencil.checked = profile.stencil;
+  els.pathPrecision.value = String(profile.pathPrecision);
+  if (profile.spliceThreshold) els.spliceThreshold.value = String(profile.spliceThreshold);
+  els.minify.checked = profile.minify;
+  els.preset.value = "";
+  updateOutputs();
+}
+
+function clearProfile() {
+  els.exportProfile.value = "";
 }
 
 function applyPreset(name) {
@@ -140,7 +197,12 @@ function updateTransparencyFields() {
   els.defringeField.hidden = mode === "";
 }
 
+function updateExportFields() {
+  els.physicalSizeField.hidden = els.exportSize.value !== "physical";
+}
+
 function resetSettings() {
+  els.exportProfile.value = "";
   els.preset.value = "";
   els.colors.value = String(DEFAULTS.colors);
   els.speckle.value = String(DEFAULTS.speckle);
@@ -157,8 +219,17 @@ function resetSettings() {
   els.fuzz.value = String(DEFAULTS.fuzz);
   els.edgeTrim.value = String(DEFAULTS.edgeTrim);
   els.defringe.value = String(DEFAULTS.defringe);
+  els.stencil.checked = false;
+  els.pathPrecision.value = "3";
+  els.lengthThreshold.value = "4";
+  els.spliceThreshold.value = "45";
+  els.exportSize.value = "px";
+  els.physicalWidth.value = "100";
+  els.physicalUnit.value = "mm";
+  els.minify.checked = false;
   setEyedropper(false);
   updateTransparencyFields();
+  updateExportFields();
   updateOutputs();
 }
 
@@ -194,18 +265,73 @@ function setResultActions(enabled) {
   if (!enabled) els.download.removeAttribute("href");
 }
 
+/** Export post-processing options from the SVG export controls. */
+function exportOptions() {
+  const opts = {};
+  // Minified drops the accessibility title too; otherwise the file name
+  // becomes the <title> so standalone SVGs have an accessible name.
+  if (els.minify.checked) opts.minify = true;
+  else opts.title = state.fileName.replace(/\.[^.]+$/, "");
+  if (els.exportSize.value === "physical") {
+    const width = Number(els.physicalWidth.value);
+    if (width > 0) {
+      opts.physicalWidth = width;
+      opts.physicalUnit = els.physicalUnit.value;
+    }
+  }
+  return opts;
+}
+
+function updatePhysicalHeightOut() {
+  const width = Number(els.physicalWidth.value);
+  if (els.exportSize.value !== "physical" || !state.sourceWidth || !(width > 0)) {
+    els.physicalHeightOut.textContent = "";
+    return;
+  }
+  const height = Number((width * (state.sourceHeight / state.sourceWidth)).toFixed(2));
+  els.physicalHeightOut.textContent = `× ${height} ${els.physicalUnit.value}`;
+}
+
+/**
+ * Re-apply export post-processing (physical size, title, minify) to the
+ * last trace and refresh preview, stats, and download. Pure string work:
+ * export option changes never re-trace.
+ */
+function refreshExport() {
+  if (!state.svgRaw) return { paths: 0 };
+  state.svg = applyExportOptions(state.svgRaw, exportOptions());
+
+  // Rendered via <img> + blob URL: sandboxes the generated markup and
+  // avoids inflating the DOM with thousands of inline path nodes.
+  if (state.downloadUrl) URL.revokeObjectURL(state.downloadUrl);
+  const blob = new Blob([state.svg], { type: "image/svg+xml" });
+  state.downloadUrl = URL.createObjectURL(blob);
+  els.resultView.src = state.downloadUrl;
+
+  const paths = countPaths(state.svg);
+  const kb = blob.size / 1024;
+  els.statPaths.textContent = paths.toLocaleString();
+  els.statSize.textContent = kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb.toFixed(0)} KB`;
+  els.download.href = state.downloadUrl;
+  els.download.download = `${state.fileName.replace(/\.[^.]+$/, "")}.svg`;
+  setResultActions(true);
+  updatePhysicalHeightOut();
+  return { paths };
+}
+
 async function retrace() {
   if (!state.bitmap) return;
   setBusy(true);
   showError("");
   try {
     const settings = currentSettings();
-    // "auto" traces small sources at the full budget: upscale to the
-    // 2048 px cap regardless of source size (never below 1x).
-    const upscale = settings.upscale === "auto"
-      ? Math.max(1, MAX_TRACE_SIDE / Math.max(state.bitmap.width, state.bitmap.height))
+    // "auto"/"ultra" trace at the full budget for their ceiling: upscale
+    // to the cap regardless of source size (never below 1x).
+    const maxSide = settings.upscale === "ultra" ? MAX_TRACE_SIDE_ULTRA : MAX_TRACE_SIDE;
+    const upscale = settings.upscale === "auto" || settings.upscale === "ultra"
+      ? Math.max(1, maxSide / Math.max(state.bitmap.width, state.bitmap.height))
       : settings.upscale;
-    const scale = fitTraceScale(state.bitmap.width, state.bitmap.height, upscale);
+    const scale = fitTraceScale(state.bitmap.width, state.bitmap.height, upscale, maxSide);
     // Nearest-neighbor pairs with pixel-exact tracing only; crisp mode is
     // corner sharpness, not resampling (NN jaggies anti-aliased sources).
     const nearest = settings.mode === "none";
@@ -214,19 +340,10 @@ async function retrace() {
     }
     const result = await tracer.trace(state.raster.imageData, settings, state.sourceWidth, state.sourceHeight);
     if (!result) return; // superseded by a newer request
-    state.svg = result.svg;
-
-    // Rendered via <img> + blob URL: sandboxes the generated markup and
-    // avoids inflating the DOM with thousands of inline path nodes.
-    if (state.downloadUrl) URL.revokeObjectURL(state.downloadUrl);
-    state.downloadUrl = URL.createObjectURL(new Blob([result.svg], { type: "image/svg+xml" }));
-    els.resultView.src = state.downloadUrl;
-
-    const paths = countPaths(result.svg);
-    const kb = new Blob([result.svg]).size / 1024;
-    els.statPaths.textContent = paths.toLocaleString();
-    els.statSize.textContent = kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb.toFixed(0)} KB`;
+    state.svgRaw = result.svg;
+    const { paths } = refreshExport();
     els.statTime.textContent = `${result.ms.toLocaleString()} ms`;
+
     let statusText = result.knockedOut
       ? `Traced ${paths.toLocaleString()} paths. Removed background rgb(${result.knockedOut.join(", ")}).`
       : `Traced ${paths.toLocaleString()} paths.`;
@@ -243,11 +360,10 @@ async function retrace() {
     if (Math.max(width, height) < requestedSide) {
       statusText += ` Image resized to ${width}×${height} px for tracing.`;
     }
+    if (paths > 1000) {
+      statusText += " High path count: consider the Web profile or fewer colors.";
+    }
     els.status.textContent = statusText;
-
-    els.download.href = state.downloadUrl;
-    els.download.download = `${state.fileName.replace(/\.[^.]+$/, "")}.svg`;
-    setResultActions(true);
     setBusy(false);
   } catch (err) {
     setBusy(false);
@@ -271,7 +387,10 @@ function scheduleRetrace() {
 function applyDetectedSettings(bitmap) {
   const { flat, colorCount } = analyzeFlatness(rasterize(bitmap, 1, false));
   if (!flat) {
-    state.flatNote = null;
+    // Photo-like source: tracing suits flat art. One-time hint, controls
+    // untouched (posterized photo traces are a legitimate use).
+    state.flatNote =
+      "Photographic image: tracing works best on flat art. Try the Print profile or fewer colors; for engraving photos, a raster PNG usually works better.";
     return;
   }
   const presetKey = Object.keys(PRESETS)
@@ -305,6 +424,9 @@ async function loadFile(file) {
     resetSettings();
     state.bitmap?.close();
     state.bitmap = bitmap;
+    state.file = file;
+    state.rotation = 0;
+    state.decodedSide = MAX_TRACE_SIDE;
     state.sourceWidth = sourceWidth;
     state.sourceHeight = sourceHeight;
     state.raster = null;
@@ -354,6 +476,7 @@ async function rotate(clockwise) {
   els.rotateRight.disabled = true;
   try {
     state.bitmap = await rotateBitmap(state.bitmap, clockwise);
+    state.rotation = (state.rotation + (clockwise ? 1 : 3)) % 4;
     [state.sourceWidth, state.sourceHeight] = [state.sourceHeight, state.sourceWidth];
     state.raster = null;
     await updateSourceView();
@@ -407,6 +530,7 @@ document.addEventListener("paste", (e) => {
 });
 
 els.preset.addEventListener("change", () => {
+  clearProfile();
   applyPreset(els.preset.value);
   scheduleRetrace();
 });
@@ -414,6 +538,7 @@ els.preset.addEventListener("change", () => {
 for (const input of [els.colors, els.speckle, els.layerDiff]) {
   input.addEventListener("input", () => {
     els.preset.value = ""; // manual change leaves the preset
+    clearProfile();
     updateOutputs();
     scheduleRetrace();
   });
@@ -432,14 +557,84 @@ els.transparent.addEventListener("change", () => {
 });
 
 els.knockoutColor.addEventListener("input", scheduleRetrace);
-els.upscale.addEventListener("change", scheduleRetrace);
+
+/**
+ * The bitmap is decoded at the 2048 cap. Ultra re-decodes the kept file
+ * at 4096 so capped sources regain real detail, replaying any rotation.
+ * Uncapped sources (small logos) skip this: upscaling covers them.
+ */
+async function ensureUltraBitmap() {
+  if (!state.file || !state.bitmap || state.decodedSide >= MAX_TRACE_SIDE_ULTRA) return;
+  if (Math.max(state.sourceWidth, state.sourceHeight) <= Math.max(state.bitmap.width, state.bitmap.height)) {
+    state.decodedSide = MAX_TRACE_SIDE_ULTRA;
+    return;
+  }
+  const token = state.loadToken;
+  els.status.textContent = "Reloading image at 4096 px…";
+  try {
+    const decoded = await decodeImage(state.file, MAX_TRACE_SIDE_ULTRA);
+    let bitmap = await capBitmap(decoded, MAX_TRACE_SIDE_ULTRA);
+    for (let i = 0; i < state.rotation; i++) bitmap = await rotateBitmap(bitmap, true);
+    if (token !== state.loadToken) {
+      bitmap.close(); // a new image loaded while re-decoding
+      return;
+    }
+    state.bitmap?.close();
+    state.bitmap = bitmap;
+    state.raster = null;
+    state.decodedSide = MAX_TRACE_SIDE_ULTRA;
+    if (state.rotation) await updateSourceView();
+  } catch (err) {
+    showError(err.message || "Could not reload the image at 4096 px.");
+  }
+}
+
+els.upscale.addEventListener("change", async () => {
+  clearProfile();
+  if (els.upscale.value === "ultra") await ensureUltraBitmap();
+  scheduleRetrace();
+});
 els.grayscale.addEventListener("change", scheduleRetrace);
 els.denoise.addEventListener("change", scheduleRetrace);
-els.hierarchical.addEventListener("change", scheduleRetrace);
+els.stencil.addEventListener("change", () => {
+  clearProfile();
+  scheduleRetrace();
+});
+els.hierarchical.addEventListener("change", () => {
+  clearProfile();
+  scheduleRetrace();
+});
 els.cornerThreshold.addEventListener("input", () => {
+  clearProfile();
   updateOutputs();
   scheduleRetrace();
 });
+for (const input of [els.pathPrecision, els.lengthThreshold, els.spliceThreshold]) {
+  input.addEventListener("input", () => {
+    clearProfile();
+    updateOutputs();
+    scheduleRetrace();
+  });
+}
+
+els.exportProfile.addEventListener("change", async () => {
+  const name = els.exportProfile.value;
+  if (!name) return;
+  applyExportProfile(name);
+  if (els.upscale.value === "ultra") await ensureUltraBitmap();
+  refreshExport(); // minify may have changed; applies without waiting
+  scheduleRetrace();
+});
+
+// Export options are post-processing only: no re-trace, instant apply.
+els.exportSize.addEventListener("change", () => {
+  updateExportFields();
+  refreshExport();
+});
+for (const input of [els.physicalWidth, els.physicalUnit]) {
+  input.addEventListener("input", refreshExport);
+}
+els.minify.addEventListener("change", refreshExport);
 // Crisp nudges corner rounding in the open (like presets); the slider
 // stays fully user-editable afterwards.
 els.crisp.addEventListener("change", () => {
@@ -489,7 +684,10 @@ els.sourceView.addEventListener("click", (e) => {
   scheduleRetrace();
 });
 for (const radio of document.querySelectorAll('input[name="mode"]')) {
-  radio.addEventListener("change", scheduleRetrace);
+  radio.addEventListener("change", () => {
+    clearProfile();
+    scheduleRetrace();
+  });
 }
 
 els.showResult.addEventListener("click", () => setView("result"));

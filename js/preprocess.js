@@ -16,6 +16,11 @@ export const MAX_TRACE_PIXELS = 64_000_000;
 // 1-1.5 GB. 2048x2048 tops out at 4.2 MP.
 export const MAX_TRACE_SIDE = 2048;
 
+// Opt-in "Ultra" ceiling for fabrication exports (laser, cutting): 4096
+// on the longest side is 16.8 MP, ~67 MB per RGBA copy. Desktop handles
+// it; low-memory mobile devices may not, so it never becomes the default.
+export const MAX_TRACE_SIDE_ULTRA = 4096;
+
 /**
  * Effective scale factor for tracing: the requested upscale, capped so
  * the longest side never exceeds maxSide. Below 1 the image is
@@ -55,6 +60,10 @@ export const DEFAULTS = Object.freeze({
   fuzz: 16,
   edgeTrim: 0,
   defringe: 0,
+  stencil: false,
+  pathPrecision: 3,
+  lengthThreshold: 4,
+  spliceThreshold: 45,
 });
 
 // Keyed by color count. Speckle and layer difference scale inversely:
@@ -72,6 +81,64 @@ export const PRESETS = Object.freeze({
   128: { colors: 128, speckle: 2, layerDiff: 8 },
   256: { colors: 256, speckle: 8, layerDiff: 16 },
 });
+
+// Purpose-based export profiles (SVG_EXPORT_RESEARCH.md). Values are
+// applied to the visible controls like PRESETS: users can edit them
+// afterwards. pathPrecision/spliceThreshold feed the tracer directly;
+// minify/stencil toggle post-processing and binary color mode.
+export const EXPORT_PROFILES = Object.freeze({
+  web: { colors: 16, speckle: 10, layerDiff: 24, mode: "spline", cornerThreshold: 60, hierarchical: "stacked", pathPrecision: 1, upscale: 2, minify: true, stencil: false },
+  balanced: { colors: 256, speckle: 8, layerDiff: 16, mode: "spline", cornerThreshold: 60, hierarchical: "stacked", pathPrecision: 2, upscale: 2, minify: false, stencil: false },
+  detail: { colors: 64, speckle: 2, layerDiff: 8, mode: "spline", cornerThreshold: 45, hierarchical: "stacked", pathPrecision: 4, spliceThreshold: 30, upscale: "auto", minify: false, stencil: false },
+  print: { colors: 8, speckle: 12, layerDiff: 28, mode: "spline", cornerThreshold: 45, hierarchical: "stacked", pathPrecision: 3, upscale: "auto", minify: false, stencil: false },
+  laser: { colors: 2, speckle: 12, layerDiff: 48, mode: "spline", cornerThreshold: 30, hierarchical: "stacked", pathPrecision: 3, upscale: "auto", minify: false, stencil: true },
+});
+
+/**
+ * Post-process a finalized SVG for export. Options:
+ * - minify: drop the XML declaration and generator comment.
+ * - physicalWidth + physicalUnit ("mm"|"cm"|"in"): rewrite the root
+ *   width/height to physical units, height from the pixel aspect ratio,
+ *   keeping the viewBox so the file still scales.
+ * - title: insert an escaped <title> as the first child and role="img".
+ */
+export function applyExportOptions(svgText, { physicalWidth, physicalUnit, title, minify } = {}) {
+  let out = svgText;
+  if (minify) {
+    out = out.replace(/^<\?xml[^?]*\?>\s*/, "").replace(/^<!--.*?-->\s*/s, "");
+  }
+  if (physicalWidth > 0 && physicalUnit) {
+    out = out.replace(
+      /(<svg[^>]*?) width="(\d+)" height="(\d+)"( viewBox="[^"]*")/,
+      (_, head, w, h, vb) => {
+        const height = Number((physicalWidth * (h / w)).toFixed(2));
+        return `${head} width="${physicalWidth}${physicalUnit}" height="${height}${physicalUnit}"${vb}`;
+      },
+    );
+  }
+  if (title) {
+    const escaped = String(title).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    out = out.replace(/(<svg[^>]*)>/, (_, head) => `${head} role="img">\n<title>${escaped}</title>`);
+  }
+  return out;
+}
+
+/**
+ * Paint pixels below the alpha threshold with the given opaque color.
+ * Binary (stencil) tracing keys on brightness only and ignores alpha, so
+ * transparent areas must become background-colored before the trace.
+ */
+export function fillTransparent(img, [r, g, b]) {
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < ALPHA_THRESHOLD) {
+      d[i] = r;
+      d[i + 1] = g;
+      d[i + 2] = b;
+      d[i + 3] = 255;
+    }
+  }
+}
 
 /** Parse "#RRGGBB" or "RRGGBB" into [r, g, b], or null. */
 export function parseHexColor(value) {

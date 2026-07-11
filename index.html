@@ -43,7 +43,7 @@
     }
   </script>
 
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=25">
 </head>
 <body>
   <header class="topbar">
@@ -87,6 +87,22 @@
         </div>
 
         <div class="field">
+          <label for="export-profile" title="Purpose-based starting point: sets colors, cleanup, path detail, and output options together. Every control stays editable">Export profile</label>
+          <select id="export-profile">
+            <option value="">Custom</option>
+            <option value="web">Web optimized (smallest)</option>
+            <option value="balanced">Balanced</option>
+            <option value="detail">High detail</option>
+            <option value="print">Print &amp; cutting</option>
+            <option value="laser">Laser stencil (B/W)</option>
+          </select>
+        </div>
+
+        <details class="panel" open>
+          <summary>Colors &amp; cleanup</summary>
+          <div class="panel-body">
+
+        <div class="field">
           <label for="preset" title="Quick setting: target color count with matched cleanup levels">Preset</label>
           <select id="preset">
             <option value="">Custom</option>
@@ -118,14 +134,22 @@
           <input type="range" id="layer-diff" min="0" max="128" step="1" value="16">
         </div>
 
+          </div>
+        </details>
+
+        <details class="panel" open>
+          <summary>Tracing</summary>
+          <div class="panel-body">
+
         <div class="field">
-          <label for="upscale" title="Enlarges the image before tracing for smoother curves. Longest side is capped at 2048 px; larger images are reduced to fit">Upscale before tracing</label>
+          <label for="upscale" title="Enlarges the image before tracing for smoother curves. Longest side is capped at 2048 px (4096 with Ultra); larger images are reduced to fit. Ultra is slower and uses much more memory">Upscale before tracing</label>
           <select id="upscale">
             <option value="1">1× (off)</option>
             <option value="2" selected>2× (default)</option>
             <option value="3">3×</option>
             <option value="4">4×</option>
             <option value="auto">Auto (fit 2048)</option>
+            <option value="ultra">Ultra (fit 4096, slow)</option>
           </select>
         </div>
 
@@ -149,14 +173,35 @@
           </select>
         </div>
 
+        <details class="field advanced">
+          <summary title="Tracer internals: path precision and curve fitting">Advanced tracing</summary>
+          <div class="subfield">
+            <label for="path-precision" title="Decimal places in path coordinates. 1-2 for small web files; 3-4 for print and fabrication">Path precision <output id="path-precision-out" for="path-precision">3</output></label>
+            <input type="range" id="path-precision" min="1" max="4" step="1" value="3">
+          </div>
+          <div class="subfield">
+            <label for="length-threshold" title="Curves subdivide until segments are shorter than this. Lower keeps more detail; higher simplifies">Segment length <output id="length-threshold-out" for="length-threshold">4</output></label>
+            <input type="range" id="length-threshold" min="3.5" max="10" step="0.5" value="4">
+          </div>
+          <div class="subfield">
+            <label for="splice-threshold" title="Angle change needed to split a spline. Lower traces more faithful curves; higher simplifies">Spline splitting <output id="splice-threshold-out" for="splice-threshold">45</output></label>
+            <input type="range" id="splice-threshold" min="10" max="90" step="5" value="45">
+          </div>
+        </details>
+
         <div class="field">
+          <label class="choice"><input type="checkbox" id="stencil"> <span title="Black and white stencil trace: dark areas become black shapes, everything else drops out. Best for laser cutting, stamps, and silhouettes">Stencil (black &amp; white)</span></label>
           <label class="choice"><input type="checkbox" id="grayscale"> <span title="Convert to shades of gray before tracing">Grayscale</span></label>
           <label class="choice"><input type="checkbox" id="denoise"> <span title="Smooths photo noise before color reduction. Softens pixel art and fine texture">Denoise (photos; softens pixel art)</span></label>
           <label class="choice"><input type="checkbox" id="crisp"> <span title="Sharper corner rounding for hard-edged sources. Best for text and logos">Crisp edges (text &amp; logos)</span></label>
         </div>
 
-        <fieldset class="field">
-          <legend title="Make the background transparent in the traced SVG">Background removal</legend>
+          </div>
+        </details>
+
+        <details class="panel">
+          <summary title="Make the background transparent in the traced SVG">Background removal</summary>
+          <div class="panel-body">
           <div class="subfield">
             <label for="transparent" title="Edges: remove everything connected to the image border. Color: remove a color everywhere it appears">Mode</label>
             <select id="transparent">
@@ -185,7 +230,33 @@
             <label for="defringe" title="Repaints this many pixels of the cutout boundary with interior colors to hide leftover fringe. Keeps thin details at full size">Defringe <output id="defringe-out" for="defringe">0</output></label>
             <input type="range" id="defringe" min="0" max="8" step="1" value="0">
           </div>
-        </fieldset>
+          </div>
+        </details>
+
+        <details class="panel">
+          <summary title="How the downloaded SVG file is written. Changes apply instantly without re-tracing">SVG export</summary>
+          <div class="panel-body">
+          <div class="subfield">
+            <label for="export-size" title="Match source pixels writes width/height in px for stable web layout. Physical size writes real-world units for print and cutting software">Size</label>
+            <select id="export-size">
+              <option value="px">Match source pixels</option>
+              <option value="physical">Physical size</option>
+            </select>
+          </div>
+          <div class="subfield" id="physical-size-field" hidden>
+            <label for="physical-width" title="Exported width; height follows the image aspect ratio">Width <output id="physical-height-out" for="physical-width"></output></label>
+            <div class="color-row">
+              <input type="number" id="physical-width" min="1" step="any" value="100" inputmode="decimal">
+              <select id="physical-unit" aria-label="Physical unit">
+                <option value="mm">mm</option>
+                <option value="cm">cm</option>
+                <option value="in">in</option>
+              </select>
+            </div>
+          </div>
+          <label class="choice"><input type="checkbox" id="minify"> <span title="Strips the XML declaration, generator comment, and accessibility title for the smallest possible file">Minified (smallest file)</span></label>
+          </div>
+        </details>
       </aside>
 
       <div class="preview-pane">
@@ -224,6 +295,28 @@
             <a id="download" class="button button-primary" aria-disabled="true" download>Download SVG</a>
           </div>
         </div>
+
+        <section class="export-help" aria-label="SVG export guide">
+          <h2>SVG export guide</h2>
+          <div class="help-grid">
+            <div>
+              <h3>Profiles</h3>
+              <p>Export profiles are purpose-based starting points: they set colors, cleanup, path detail, and output options together. Every control stays editable afterwards; changing one switches the profile back to Custom.</p>
+            </div>
+            <div>
+              <h3>Size &amp; units</h3>
+              <p>SVG is vector geometry, so there is no DPI: it scales cleanly at any size. Use <em>Match source pixels</em> for websites and apps. Use <em>Physical size</em> (mm, cm, in) so print and cutting software opens the file at the real-world size; the height follows the image automatically.</p>
+            </div>
+            <div>
+              <h3>Smallest files</h3>
+              <p>The Web profile combines fewer colors, path precision 1, and minified output. Same-fill shapes are always grouped to save bytes. Fewer colors and higher speckle filtering shrink files far more than any other setting.</p>
+            </div>
+            <div>
+              <h3>Laser &amp; cutting</h3>
+              <p>For laser work use the Laser stencil profile: black &amp; white trace, aggressive despeckle, physical size. Set upscale to <em>Ultra (fit 4096)</em> for the cleanest edges, and try <em>Cutout</em> layering for vinyl and CNC. Photos usually engrave better exported as a prepared raster image than as a traced SVG.</p>
+            </div>
+          </div>
+        </section>
       </div>
     </section>
   </main>
@@ -238,6 +331,6 @@
     <span class="app-version" id="app-version"></span>
   </footer>
 
-  <script type="module" src="js/app.js?v=24"></script>
+  <script type="module" src="js/app.js?v=25"></script>
 </body>
 </html>
