@@ -410,7 +410,7 @@ test("analyzeFlatness detects dominant clusters in noisy flat art", () => {
   }
   const result = analyzeFlatness(img);
   assert.equal(result.flat, true);
-  assert.ok(result.colorCount <= 4, `expected <= 4 clusters, got ${result.colorCount}`);
+  assert.equal(result.colorCount, 8);
 });
 
 test("analyzeFlatness counts colors needed for 95% coverage", () => {

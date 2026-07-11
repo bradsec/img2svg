@@ -311,9 +311,8 @@ export function dominantOpaqueColor(img) {
  * coverage is tested before unique counts: flat when the 16 most common
  * sampled colors cover >= 90% of opaque samples. Exact sampled images below
  * 256 colors are also flat, and noisy flat art can still pass when its
- * colors collapse into a few dominant RGB clusters. colorCount is the number
- * of colors needed for 95% coverage, clamped to [2, 32] for heuristic flat
- * images.
+ * colors collapse into a few dominant RGB clusters. Clustered art starts with
+ * a less aggressive color budget so distressed details survive.
  * Transparent pixels are ignored; a fully
  * transparent image is not flat.
  */
@@ -371,7 +370,7 @@ export function analyzeFlatness(img) {
       }
     }
     if (clusterCovered / total >= 0.9 && clusterCounts[0] / total >= 0.35) {
-      return { flat: true, colorCount: Math.min(32, Math.max(2, clusterColorCount)) };
+      return { flat: true, colorCount: Math.min(32, Math.max(8, clusterColorCount * 2)) };
     }
   }
   return {
