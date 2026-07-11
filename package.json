@@ -5,7 +5,7 @@
   "license": "MIT",
   "repository": "github:bradsec/rastertrace",
   "type": "module",
-  "description": "RasterTrace browser-based raster to SVG converter using vtracer compiled to WebAssembly",
+  "description": "RasterTrace browser-based raster to SVG converter",
   "scripts": {
     "test": "node --test",
     "serve": "python3 -m http.server 8137",
