@@ -1,5 +1,5 @@
 // UI wiring: state, controls, preview, download.
-import { capBitmap, decodeImage, rasterize, rotateBitmap, Tracer } from "./pipeline.js?v=16";
+import { capBitmap, decodeImage, rasterize, rotateBitmap, Tracer } from "./pipeline.js?v=17";
 import {
   analyzeFlatness,
   countPaths,
@@ -7,7 +7,7 @@ import {
   parseHexColor,
   PRESETS,
   toHexColor,
-} from "./preprocess.js?v=16";
+} from "./preprocess.js?v=17";
 
 const $ = (id) => document.getElementById(id);
 
@@ -77,7 +77,7 @@ const state = {
   flatNote: null, // status prefix when load-time detection fired
 };
 
-const tracer = new Tracer(new URL("./worker.js?v=16", import.meta.url));
+const tracer = new Tracer(new URL("./worker.js?v=17", import.meta.url));
 
 function currentSettings() {
   return {
@@ -562,3 +562,12 @@ els.copySvg.addEventListener("click", async () => {
 });
 
 updateOutputs();
+
+// Footer version: package.json is the single version source and is served
+// alongside the app. Silent on failure so the footer never breaks.
+fetch("package.json")
+  .then((r) => r.json())
+  .then(({ version }) => {
+    if (version) $("app-version").textContent = `v${version}`;
+  })
+  .catch(() => {});
