@@ -308,10 +308,12 @@ export function dominantOpaqueColor(img) {
  * Coverage-based flatness heuristic. Flat-color sources (logos, text,
  * screenshots, pixel art) concentrate almost all pixels in a handful of
  * colors even when anti-aliasing adds thousands of rare fringe colors, so
- * coverage is tested instead of unique counts: flat when the 16 most
- * common sampled colors cover >= 90% of opaque samples. colorCount is the
- * number of colors needed for 95% coverage, clamped to [2, 32] to line up
- * with the colors control. Transparent pixels are ignored; a fully
+ * coverage is tested before unique counts: flat when the 16 most common
+ * sampled colors cover >= 90% of opaque samples. Exact sampled images below
+ * 256 colors are also flat, so balanced low-color art still drives the
+ * color slider. colorCount is the number of colors needed for 95% coverage,
+ * clamped to [2, 32] for heuristic flat images.
+ * Transparent pixels are ignored; a fully
  * transparent image is not flat.
  */
 export function analyzeFlatness(img) {
@@ -344,6 +346,9 @@ export function analyzeFlatness(img) {
       counted = true;
     }
     if (counted && i >= 16) break;
+  }
+  if (counts.size < 256 && topCoverage < 0.9) {
+    return { flat: true, colorCount: Math.max(2, counts.size) };
   }
   return {
     flat: topCoverage >= 0.9,

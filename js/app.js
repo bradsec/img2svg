@@ -585,6 +585,8 @@ for (const type of ["pointerup", "pointercancel"]) {
   });
 }
 
+els.preview.addEventListener("dragstart", (e) => e.preventDefault());
+
 els.copySvg.addEventListener("click", async () => {
   if (!state.svg) return;
   try {

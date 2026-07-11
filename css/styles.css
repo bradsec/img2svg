@@ -20,8 +20,8 @@
   --success: #57b98a;
   --r: 8px;
   --r-sm: 6px;
-  --check-a: #26282c;
-  --check-b: #1e2023;
+  --check-a: #36393f;
+  --check-b: #2a2d32;
   --ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color-scheme: dark;

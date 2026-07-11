@@ -367,6 +367,22 @@ test("analyzeFlatness clamps colorCount to at least 2", () => {
   assert.equal(result.colorCount, 2);
 });
 
+test("analyzeFlatness detects exact low-color images", () => {
+  const img = makeImage(40, 20);
+  const colors = Array.from({ length: 20 }, (_, i) => [
+    (i * 47) % 256,
+    (i * 83) % 256,
+    (i * 131) % 256,
+    255,
+  ]);
+  for (let y = 0; y < img.height; y++) {
+    for (let x = 0; x < img.width; x++) setPixel(img, x, y, colors[Math.floor(x / 2)]);
+  }
+  const result = analyzeFlatness(img);
+  assert.equal(result.flat, true);
+  assert.equal(result.colorCount, 20);
+});
+
 test("analyzeFlatness counts colors needed for 95% coverage", () => {
   // Five equal-ish bands (one loses a row to fringe): 95% coverage needs
   // all five dominant colors, so colorCount must be exactly 5.
