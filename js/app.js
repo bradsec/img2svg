@@ -496,6 +496,16 @@ els.preview.addEventListener(
   { passive: false },
 );
 
+for (const type of ["touchstart", "touchmove"]) {
+  els.preview.addEventListener(
+    type,
+    (e) => {
+      if (e.touches.length > 1) e.preventDefault();
+    },
+    { passive: false },
+  );
+}
+
 els.preview.addEventListener("keydown", (e) => {
   if (e.key === "+" || e.key === "=") zoomAtCenter(1.5);
   else if (e.key === "-" || e.key === "_") zoomAtCenter(1 / 1.5);
