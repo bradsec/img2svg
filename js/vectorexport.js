@@ -19,12 +19,25 @@ export function parseSvgPaths(svgText) {
   const width = Number(vb ? vb[1] : wh?.[1] ?? 0);
   const height = Number(vb ? vb[2] : wh?.[2] ?? 0);
 
+  // Walk groups and paths in document order: finalizeSvg moves the fill
+  // of grouped same-fill paths onto the enclosing <g>, so a path without
+  // its own fill inherits the innermost group's.
   const paths = [];
-  for (const el of svgText.matchAll(/<path\b[^>]*>/g)) {
-    const d = el[0].match(/\sd="([^"]*)"/)?.[1];
+  const groupFills = [];
+  for (const el of svgText.matchAll(/<g\b[^>]*>|<\/g>|<path\b[^>]*>/g)) {
+    const tag = el[0];
+    if (tag.startsWith("<g")) {
+      groupFills.push(tag.match(/\sfill="([^"]*)"/)?.[1] ?? groupFills.at(-1));
+      continue;
+    }
+    if (tag.startsWith("</g")) {
+      groupFills.pop();
+      continue;
+    }
+    const d = tag.match(/\sd="([^"]*)"/)?.[1];
     if (!d) continue;
-    const fill = el[0].match(/\sfill="([^"]*)"/)?.[1] || "#000000";
-    const tr = el[0].match(/translate\((-?[\d.]+)[, ](-?[\d.]+)\)/);
+    const fill = tag.match(/\sfill="([^"]*)"/)?.[1] ?? groupFills.at(-1) ?? "#000000";
+    const tr = tag.match(/translate\((-?[\d.]+)[, ](-?[\d.]+)\)/);
     const dx = tr ? Number(tr[1]) : 0;
     const dy = tr ? Number(tr[2]) : 0;
     paths.push({ fill, subpaths: parsePathData(d, dx, dy) });

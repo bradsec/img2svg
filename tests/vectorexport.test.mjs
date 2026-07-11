@@ -30,6 +30,25 @@ test("parseSvgPaths reads dims, fills, subpaths, and applies translate", () => {
   assert.equal(hole.segments.every((s) => s.kind === "line"), true);
 });
 
+test("parseSvgPaths takes fill from an enclosing group", () => {
+  // finalizeSvg groups adjacent same-fill paths and strips their fill
+  const svg = [
+    '<svg width="10" height="10" viewBox="0 0 10 10">',
+    '<path d="M0 0 L1 0 Z " fill="#112233" transform="translate(0,0)"/>',
+    '<g fill="#00FF00">',
+    '<path d="M2 0 L3 0 Z " transform="translate(0,0)"/>',
+    '<path d="M4 0 L5 0 Z " transform="translate(0,0)"/>',
+    "</g>",
+    '<path d="M6 0 L7 0 Z " fill="#445566"/>',
+    "</svg>",
+  ].join("\n");
+  const parsed = parseSvgPaths(svg);
+  assert.deepEqual(
+    parsed.paths.map((p) => p.fill),
+    ["#112233", "#00FF00", "#00FF00", "#445566"],
+  );
+});
+
 test("parseSvgPaths handles implicit command repetition", () => {
   const svg = '<svg width="10" height="10" viewBox="0 0 10 10">\n<path d="M0 0 C1 0 2 0 3 0 4 0 5 0 6 0 L7 0 8 0 Z " fill="#000000"/>\n</svg>';
   const parsed = parseSvgPaths(svg);
