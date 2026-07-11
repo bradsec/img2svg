@@ -178,7 +178,12 @@ async function retrace() {
     let statusText = result.knockedOut
       ? `Traced ${paths.toLocaleString()} paths. Removed background rgb(${result.knockedOut.join(", ")}).`
       : `Traced ${paths.toLocaleString()} paths.`;
-    if (state.flatNote) statusText = `${state.flatNote} ${statusText}`;
+    // Show the detection note once; later retraces reflect whatever the
+    // user has changed since, so a persistent note could contradict them.
+    if (state.flatNote) {
+      statusText = `${state.flatNote} ${statusText}`;
+      state.flatNote = null;
+    }
     // Report whenever the trace ran below the requested size, whether the
     // bitmap was capped at load or the upscale was clamped.
     const { width, height } = state.raster.imageData;

@@ -366,3 +366,24 @@ test("analyzeFlatness clamps colorCount to at least 2", () => {
   assert.equal(result.flat, true);
   assert.equal(result.colorCount, 2);
 });
+
+test("analyzeFlatness counts colors needed for 95% coverage", () => {
+  // Five equal-ish bands (one loses a row to fringe): 95% coverage needs
+  // all five dominant colors, so colorCount must be exactly 5.
+  const img = makeImage(100, 100);
+  const bands = [
+    [200, 40, 40, 255],
+    [40, 200, 40, 255],
+    [40, 40, 200, 255],
+    [220, 220, 40, 255],
+    [40, 220, 220, 255],
+  ];
+  for (let y = 0; y < 100; y++) {
+    for (let x = 0; x < 100; x++) setPixel(img, x, y, bands[Math.floor(y / 20)]);
+  }
+  // One row of 100 unique anti-alias-style blends (1% of pixels).
+  for (let x = 0; x < 100; x++) setPixel(img, x, 19, [100 + x, 50, 150 - x, 255]);
+  const result = analyzeFlatness(img);
+  assert.equal(result.flat, true);
+  assert.equal(result.colorCount, 5);
+});
