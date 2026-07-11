@@ -43,7 +43,7 @@
     }
   </script>
 
-  <link rel="stylesheet" href="css/styles.css?v=31">
+  <link rel="stylesheet" href="css/styles.css?v=33">
 </head>
 <body>
   <header class="topbar">
@@ -99,6 +99,10 @@
             <option value="laser">Laser stencil (B/W)</option>
           </select>
         </div>
+
+        <!-- The stencil threshold field moves here while the Laser
+             profile is active: it is that profile's main dial. -->
+        <div id="stencil-threshold-slot" hidden></div>
 
         <details class="panel" open>
           <summary>Colors &amp; cleanup</summary>
@@ -340,6 +344,6 @@
     <span class="app-version" id="app-version"></span>
   </footer>
 
-  <script type="module" src="js/app.js?v=31"></script>
+  <script type="module" src="js/app.js?v=33"></script>
 </body>
 </html>

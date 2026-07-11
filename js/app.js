@@ -1,6 +1,6 @@
 // UI wiring: state, controls, preview, download.
-import { capBitmap, decodeImage, rasterize, rotateBitmap, Tracer } from "./pipeline.js?v=31";
-import { parseSvgPaths, toDxf, toPdf } from "./vectorexport.js?v=31";
+import { capBitmap, decodeImage, rasterize, rotateBitmap, Tracer } from "./pipeline.js?v=33";
+import { parseSvgPaths, toDxf, toPdf } from "./vectorexport.js?v=33";
 import {
   analyzeFlatness,
   applyExportOptions,
@@ -14,7 +14,7 @@ import {
   PRESETS,
   sanitizeSettings,
   toHexColor,
-} from "./preprocess.js?v=31";
+} from "./preprocess.js?v=33";
 
 const $ = (id) => document.getElementById(id);
 
@@ -46,6 +46,7 @@ const els = {
   spliceThreshold: $("splice-threshold"),
   spliceThresholdOut: $("splice-threshold-out"),
   stencil: $("stencil"),
+  stencilThresholdSlot: $("stencil-threshold-slot"),
   stencilThresholdField: $("stencil-threshold-field"),
   stencilThreshold: $("stencil-threshold"),
   stencilThresholdOut: $("stencil-threshold-out"),
@@ -117,7 +118,7 @@ const state = {
   flatNote: null, // status prefix when load-time detection fired
 };
 
-const tracer = new Tracer(new URL("./worker.js?v=31", import.meta.url));
+const tracer = new Tracer(new URL("./worker.js?v=33", import.meta.url));
 
 function currentSettings() {
   return {
@@ -167,6 +168,16 @@ function updateOutputs() {
 
 function updateStencilFields() {
   els.stencilThresholdField.hidden = !els.stencil.checked;
+  // The Laser profile's main dial belongs at the top, under the profile
+  // select; anywhere else it lives in the Tracing panel next to the
+  // stencil checkbox. Moving the node keeps value and listeners.
+  const atTop = els.stencil.checked && els.exportProfile.value === "laser";
+  els.stencilThresholdSlot.hidden = !atTop;
+  if (atTop && els.stencilThresholdField.parentElement !== els.stencilThresholdSlot) {
+    els.stencilThresholdSlot.appendChild(els.stencilThresholdField);
+  } else if (!atTop && els.stencilThresholdField.parentElement === els.stencilThresholdSlot) {
+    els.stencil.closest("label").after(els.stencilThresholdField);
+  }
 }
 
 /**
@@ -190,17 +201,18 @@ function applyExportProfile(name) {
   els.hierarchical.value = profile.hierarchical;
   els.upscale.value = String(profile.upscale);
   els.stencil.checked = profile.stencil;
-  updateStencilFields();
   els.pathPrecision.value = String(profile.pathPrecision);
   if (profile.spliceThreshold) els.spliceThreshold.value = String(profile.spliceThreshold);
   els.minify.checked = profile.minify;
   els.preset.value = "";
   els.exportProfile.value = name; // resetSettings cleared the select
+  updateStencilFields(); // after the select: Laser moves the threshold up top
   updateOutputs();
 }
 
 function clearProfile() {
   els.exportProfile.value = "";
+  updateStencilFields(); // threshold slides back into the Tracing panel
 }
 
 // -- Settings persistence: survive reloads, keep tuned values ----------
