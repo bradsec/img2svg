@@ -148,8 +148,9 @@ export async function rotateBitmap(bitmap, clockwise = true) {
  * Draw the bitmap at the given scale factor and return raw RGBA pixels.
  * Canvas interpolates in premultiplied alpha space, which is exactly the
  * halo-free resample the pipeline needs for transparent images. Scale may
- * be fractional or below 1 (device memory fit). `crisp` is kept as part of
- * the raster cache key; tracing sharpness is handled in the worker.
+ * be fractional or below 1 (device memory fit). `crisp` switches to
+ * nearest-neighbor so hard edges upscale without manufactured gradient
+ * fringe; corner sharpness is handled in the worker.
  */
 export function rasterize(bitmap, scale, crisp = false) {
   assertRasterBudget(bitmap.width, bitmap.height, scale);
@@ -157,7 +158,7 @@ export function rasterize(bitmap, scale, crisp = false) {
   const height = Math.max(1, Math.round(bitmap.height * scale));
   const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext("2d");
-  ctx.imageSmoothingEnabled = scale !== 1;
+  ctx.imageSmoothingEnabled = scale !== 1 && !crisp;
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(bitmap, 0, 0, width, height);
   return ctx.getImageData(0, 0, width, height);
