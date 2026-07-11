@@ -1,6 +1,6 @@
 // UI wiring: state, controls, preview, download.
-import { capBitmap, decodeImage, rasterize, rotateBitmap, Tracer } from "./pipeline.js?v=33";
-import { parseSvgPaths, toDxf, toPdf } from "./vectorexport.js?v=33";
+import { capBitmap, decodeImage, rasterize, rotateBitmap, Tracer } from "./pipeline.js?v=34";
+import { parseSvgPaths, toDxf, toPdf } from "./vectorexport.js?v=34";
 import {
   analyzeFlatness,
   applyExportOptions,
@@ -14,7 +14,7 @@ import {
   PRESETS,
   sanitizeSettings,
   toHexColor,
-} from "./preprocess.js?v=33";
+} from "./preprocess.js?v=34";
 
 const $ = (id) => document.getElementById(id);
 
@@ -118,7 +118,7 @@ const state = {
   flatNote: null, // status prefix when load-time detection fired
 };
 
-const tracer = new Tracer(new URL("./worker.js?v=33", import.meta.url));
+const tracer = new Tracer(new URL("./worker.js?v=34", import.meta.url));
 
 function currentSettings() {
   return {
@@ -1092,6 +1092,22 @@ els.resetSettingsBtn.addEventListener("click", () => {
   const controlsRoot = document.querySelector(".controls");
   controlsRoot.addEventListener("input", saveSettings);
   controlsRoot.addEventListener("change", saveSettings);
+}
+
+// The export guide fills the space under the canvas on desktop (the
+// controls column is usually taller); on small screens it stays a
+// workspace-level block so the mobile order puts it last, not between
+// the preview and the controls.
+{
+  const guideMedia = window.matchMedia("(max-width: 820px)");
+  const exportHelp = document.querySelector(".export-help");
+  const previewPane = document.querySelector(".preview-pane");
+  const placeExportHelp = () => {
+    const home = guideMedia.matches ? els.workspace : previewPane;
+    if (exportHelp.parentElement !== home) home.appendChild(exportHelp);
+  };
+  guideMedia.addEventListener("change", placeExportHelp);
+  placeExportHelp();
 }
 
 restoreSettings();
