@@ -24,6 +24,41 @@ test("sniffImageSize reads JPEG dimensions from SOF marker", async () => {
   assert.deepEqual(await sniffImageSize(blob(bytes, "image/jpeg")), { width: 1280, height: 800 });
 });
 
+// APP1 Exif segment with a single IFD0 entry: orientation tag 0x0112.
+// `little` picks the TIFF byte order (II vs MM).
+function exifSegment(orientation, little) {
+  const u16 = (v) => (little ? [v & 0xff, v >> 8] : [v >> 8, v & 0xff]);
+  const u32 = (v) =>
+    little
+      ? [v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff, (v >> 24) & 0xff]
+      : [(v >> 24) & 0xff, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
+  return [
+    0xff, 0xe1, 0x00, 0x22, // APP1, length 34
+    0x45, 0x78, 0x69, 0x66, 0x00, 0x00, // "Exif\0\0"
+    ...(little ? [0x49, 0x49] : [0x4d, 0x4d]), ...u16(0x2a), ...u32(8),
+    ...u16(1), // one IFD0 entry
+    ...u16(0x0112), ...u16(3), ...u32(1), ...u16(orientation), ...u16(0),
+    ...u32(0), // no next IFD
+  ];
+}
+
+const JPEG_SOF = [0xff, 0xc0, 0x00, 0x0b, 0x08, 0x03, 0x20, 0x05, 0x00, 0x03, 0x01, 0x11, 0x00];
+
+test("sniffImageSize swaps JPEG dimensions for EXIF orientation 6", async () => {
+  const bytes = [0xff, 0xd8, ...exifSegment(6, true), ...JPEG_SOF];
+  assert.deepEqual(await sniffImageSize(blob(bytes, "image/jpeg")), { width: 800, height: 1280 });
+});
+
+test("sniffImageSize swaps JPEG dimensions for big-endian EXIF orientation 8", async () => {
+  const bytes = [0xff, 0xd8, ...exifSegment(8, false), ...JPEG_SOF];
+  assert.deepEqual(await sniffImageSize(blob(bytes, "image/jpeg")), { width: 800, height: 1280 });
+});
+
+test("sniffImageSize keeps JPEG dimensions for EXIF orientation 1", async () => {
+  const bytes = [0xff, 0xd8, ...exifSegment(1, true), ...JPEG_SOF];
+  assert.deepEqual(await sniffImageSize(blob(bytes, "image/jpeg")), { width: 1280, height: 800 });
+});
+
 test("sniffImageSize reads WebP VP8X dimensions", async () => {
   const bytes = [
     0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0,

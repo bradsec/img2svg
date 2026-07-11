@@ -1,5 +1,5 @@
 // Browser-side pipeline: decode, premultiplied upscale, worker round-trip.
-import { assertRasterBudget, MAX_TRACE_SIDE } from "./preprocess.js?v=21";
+import { assertRasterBudget, MAX_TRACE_SIDE } from "./preprocess.js?v=22";
 
 export async function sniffImageSize(file) {
   const bytes = new Uint8Array(await file.slice(0, 256 * 1024).arrayBuffer());
@@ -25,18 +25,57 @@ export async function sniffImageSize(file) {
     }
   }
   if (bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    // EXIF orientations 5-8 are 90-degree rotations. createImageBitmap
+    // applies them during decode, so the sniffed size must be the
+    // oriented one or resizeWidth/resizeHeight would distort the image.
+    let rotated = false;
     for (let i = 2; i + 9 < bytes.length;) {
       if (bytes[i] !== 0xff) break;
       const marker = bytes[i + 1];
       const length = view.getUint16(i + 2);
       if (length < 2) break;
+      if (marker === 0xe1 && ascii(i + 4, 6) === "Exif\0\0") {
+        const orientation = exifOrientation(view, i + 10, i + 2 + length);
+        rotated = orientation >= 5 && orientation <= 8;
+      }
       if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
-        return { width: view.getUint16(i + 7), height: view.getUint16(i + 5) };
+        const width = view.getUint16(i + 7);
+        const height = view.getUint16(i + 5);
+        return rotated ? { width: height, height: width } : { width, height };
       }
       i += 2 + length;
     }
   }
   return null;
+}
+
+/**
+ * EXIF orientation (1-8) from the TIFF block of a JPEG APP1 segment, or 0
+ * when absent/malformed. `tiffStart` is the byte offset of the TIFF
+ * header inside `view`; `end` bounds the segment.
+ */
+function exifOrientation(view, tiffStart, end) {
+  try {
+    const byteOrder = view.getUint16(tiffStart);
+    let little;
+    if (byteOrder === 0x4949) little = true;
+    else if (byteOrder === 0x4d4d) little = false;
+    else return 0;
+    if (view.getUint16(tiffStart + 2, little) !== 0x2a) return 0;
+    const ifd = tiffStart + view.getUint32(tiffStart + 4, little);
+    if (ifd + 2 > end) return 0;
+    const entries = view.getUint16(ifd, little);
+    for (let e = 0; e < entries; e++) {
+      const entry = ifd + 2 + e * 12;
+      if (entry + 12 > end) return 0;
+      if (view.getUint16(entry, little) === 0x0112) {
+        return view.getUint16(entry + 8, little);
+      }
+    }
+  } catch {
+    // truncated segment: treat as no orientation info
+  }
+  return 0;
 }
 
 export function fitDecodeSize(width, height, maxSide = MAX_TRACE_SIDE) {
