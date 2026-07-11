@@ -1,5 +1,6 @@
 // UI wiring: state, controls, preview, download.
-import { capBitmap, decodeImage, rasterize, rotateBitmap, Tracer } from "./pipeline.js?v=27";
+import { capBitmap, decodeImage, rasterize, rotateBitmap, Tracer } from "./pipeline.js?v=28";
+import { parseSvgPaths, toDxf, toPdf } from "./vectorexport.js?v=28";
 import {
   analyzeFlatness,
   applyExportOptions,
@@ -13,7 +14,7 @@ import {
   PRESETS,
   sanitizeSettings,
   toHexColor,
-} from "./preprocess.js?v=27";
+} from "./preprocess.js?v=28";
 
 const $ = (id) => document.getElementById(id);
 
@@ -86,6 +87,8 @@ const els = {
   statTime: $("stat-time"),
   copySvg: $("copy-svg"),
   downloadPng: $("download-png"),
+  downloadPdf: $("download-pdf"),
+  downloadDxf: $("download-dxf"),
   download: $("download"),
   resetSettingsBtn: $("reset-settings"),
   panStage: $("pan-stage"),
@@ -113,7 +116,7 @@ const state = {
   flatNote: null, // status prefix when load-time detection fired
 };
 
-const tracer = new Tracer(new URL("./worker.js?v=27", import.meta.url));
+const tracer = new Tracer(new URL("./worker.js?v=28", import.meta.url));
 
 function currentSettings() {
   return {
@@ -374,6 +377,8 @@ function showError(message) {
 function setResultActions(enabled) {
   els.copySvg.disabled = !enabled;
   els.downloadPng.disabled = !enabled;
+  els.downloadPdf.disabled = !enabled;
+  els.downloadDxf.disabled = !enabled;
   els.download.setAttribute("aria-disabled", String(!enabled));
   if (!enabled) els.download.removeAttribute("href");
 }
@@ -996,6 +1001,57 @@ els.downloadPng.addEventListener("click", async () => {
     showError(err.message || "PNG export failed.");
   } finally {
     els.downloadPng.disabled = false;
+  }
+});
+
+function downloadBlob(blob, extension) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${state.fileName.replace(/\.[^.]+$/, "")}.${extension}`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Physical export width in the given output unit, or null when off. */
+function physicalWidthIn(unitsPerMm, unitsPerInch) {
+  if (els.exportSize.value !== "physical") return null;
+  const width = Number(els.physicalWidth.value);
+  if (!(width > 0)) return null;
+  const unit = els.physicalUnit.value;
+  if (unit === "in") return width * unitsPerInch;
+  return width * unitsPerMm * (unit === "cm" ? 10 : 1);
+}
+
+els.downloadPdf.addEventListener("click", () => {
+  if (!state.svgRaw || els.downloadPdf.disabled) return;
+  try {
+    const parsed = parseSvgPaths(state.svgRaw);
+    // Page size in points: the physical size when set, else source
+    // pixels at 96 dpi (72/96 pt per px).
+    const widthPt = physicalWidthIn(72 / 25.4, 72) ?? state.sourceWidth * 0.75;
+    const heightPt = widthPt * (state.sourceHeight / state.sourceWidth);
+    const pdf = toPdf(parsed, { pageWidth: widthPt, pageHeight: heightPt });
+    downloadBlob(new Blob([pdf], { type: "application/pdf" }), "pdf");
+    els.status.textContent = `PDF exported at ${(widthPt / 72).toFixed(2)}×${(heightPt / 72).toFixed(2)} in.`;
+  } catch (err) {
+    showError(err.message || "PDF export failed.");
+  }
+});
+
+els.downloadDxf.addEventListener("click", () => {
+  if (!state.svgRaw || els.downloadDxf.disabled) return;
+  try {
+    const parsed = parseSvgPaths(state.svgRaw);
+    // DXF units: mm when a physical size is set, else source pixels.
+    const widthUnits = physicalWidthIn(1, 25.4) ?? state.sourceWidth;
+    const dxf = toDxf(parsed, { scale: widthUnits / parsed.width });
+    downloadBlob(new Blob([dxf], { type: "image/vnd.dxf" }), "dxf");
+    els.status.textContent = els.exportSize.value === "physical"
+      ? `DXF exported at ${widthUnits.toFixed(1)} mm wide.`
+      : `DXF exported at ${widthUnits} units (source pixels).`;
+  } catch (err) {
+    showError(err.message || "DXF export failed.");
   }
 });
 

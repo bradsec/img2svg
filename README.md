@@ -28,6 +28,8 @@ Convert raster images to clean, scalable SVG vectors entirely in your browser. [
 - Same-fill paths grouped under shared `<g fill>` elements for smaller SVG files
 - Upscale "Auto (fit 2048)" traces small images at the full 2048 px budget for maximum curve quality
 - Live re-trace on setting changes, SVG download, clipboard copy, and PNG export at the trace resolution
+- Vector PDF export (true curves, physical page size when set) for print shops and design handoff
+- DXF export (R12) for CAD, CNC, and cutters: one closed polyline per shape, one layer per color, mm units when a physical size is set
 - Settings persist across visits and image replacements (flat-image detection still tunes colors per image); one-click Reset settings
 - Works offline after the first visit (service worker, everything stays local)
 - Zoomable preview: pinch, scroll wheel, or buttons; drag to pan
@@ -43,6 +45,7 @@ index.html          app shell
 sw.js               service worker: offline cache for the static app
 css/styles.css      design tokens + layout
 js/preprocess.js    pure pixel/string ops (Node-testable, no browser APIs)
+js/vectorexport.js  DXF and PDF writers from traced SVG (Node-testable)
 js/pipeline.js      decode, premultiplied rasterize, worker round-trip
 js/worker.js        Web Worker: preprocessing + wasm trace off the main thread
 js/app.js           UI wiring

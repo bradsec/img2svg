@@ -359,7 +359,7 @@ details.advanced[open] { display: grid; gap: 10px; }
 .stats dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); }
 .stats dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
 
-.action-buttons { display: flex; gap: 12px; }
+.action-buttons { display: flex; gap: 12px; flex-wrap: wrap; }
 
 /* ---------- Statusbar footer ---------- */
 .statusbar {
