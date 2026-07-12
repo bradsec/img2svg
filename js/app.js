@@ -1,5 +1,5 @@
 // UI wiring: state, controls, preview, download.
-import { capBitmap, decodeImage, rasterize, rotateBitmap, Tracer } from "./pipeline.js?v=35";
+import { capBitmap, decodeImage, invertBitmap, rasterize, rotateBitmap, Tracer } from "./pipeline.js?v=35";
 import { parseSvgPaths, toDxf, toPdf } from "./vectorexport.js?v=35";
 import {
   analyzeFlatness,
@@ -27,6 +27,7 @@ const els = {
   replaceImage: $("replace-image"),
   rotateLeft: $("rotate-left"),
   rotateRight: $("rotate-right"),
+  invertImage: $("invert-image"),
   exportProfile: $("export-profile"),
   preset: $("preset"),
   colors: $("colors"),
@@ -103,6 +104,7 @@ const state = {
   bitmap: null, // capped at decodedSide; source dims kept separately
   file: null, // original file, kept for the Ultra re-decode
   rotation: 0, // quarter turns applied since load, for re-decode replay
+  inverted: false, // negative applied since load, replayed on Ultra re-decode
   decodedSide: MAX_TRACE_SIDE, // cap used when bitmap was decoded
   sourceWidth: 0,
   sourceHeight: 0,
@@ -568,6 +570,8 @@ async function loadFile(file) {
     state.bitmap = bitmap;
     state.file = file;
     state.rotation = 0;
+    state.inverted = false;
+    els.invertImage.setAttribute("aria-pressed", "false");
     state.decodedSide = MAX_TRACE_SIDE;
     state.sourceWidth = sourceWidth;
     state.sourceHeight = sourceHeight;
@@ -617,6 +621,7 @@ async function rotate(clockwise) {
   if (!state.bitmap || els.rotateLeft.disabled) return;
   els.rotateLeft.disabled = true; // rotation closes the bitmap mid-flight
   els.rotateRight.disabled = true;
+  els.invertImage.disabled = true;
   try {
     state.bitmap = await rotateBitmap(state.bitmap, clockwise);
     state.rotation = (state.rotation + (clockwise ? 1 : 3)) % 4;
@@ -630,11 +635,34 @@ async function rotate(clockwise) {
   } finally {
     els.rotateLeft.disabled = false;
     els.rotateRight.disabled = false;
+    els.invertImage.disabled = false;
+  }
+}
+
+async function invert() {
+  if (!state.bitmap || els.invertImage.disabled) return;
+  els.rotateLeft.disabled = true; // inversion closes the bitmap mid-flight
+  els.rotateRight.disabled = true;
+  els.invertImage.disabled = true;
+  try {
+    state.bitmap = await invertBitmap(state.bitmap);
+    state.inverted = !state.inverted;
+    els.invertImage.setAttribute("aria-pressed", String(state.inverted));
+    state.raster = null;
+    await updateSourceView();
+    retrace();
+  } catch (err) {
+    showError(err.message || "Could not invert the image.");
+  } finally {
+    els.rotateLeft.disabled = false;
+    els.rotateRight.disabled = false;
+    els.invertImage.disabled = false;
   }
 }
 
 els.rotateLeft.addEventListener("click", () => rotate(false));
 els.rotateRight.addEventListener("click", () => rotate(true));
+els.invertImage.addEventListener("click", invert);
 els.fileInput.addEventListener("change", () => {
   const file = els.fileInput.files[0];
   // Clear so picking the same file again still fires a change event
@@ -718,6 +746,7 @@ async function ensureUltraBitmap() {
     const decoded = await decodeImage(state.file, MAX_TRACE_SIDE_ULTRA);
     let bitmap = await capBitmap(decoded, MAX_TRACE_SIDE_ULTRA);
     for (let i = 0; i < state.rotation; i++) bitmap = await rotateBitmap(bitmap, true);
+    if (state.inverted) bitmap = await invertBitmap(bitmap);
     if (token !== state.loadToken) {
       bitmap.close(); // a new image loaded while re-decoding
       return;
@@ -726,7 +755,7 @@ async function ensureUltraBitmap() {
     state.bitmap = bitmap;
     state.raster = null;
     state.decodedSide = MAX_TRACE_SIDE_ULTRA;
-    if (state.rotation) await updateSourceView();
+    if (state.rotation || state.inverted) await updateSourceView();
   } catch (err) {
     showError(err.message || "Could not reload the image at 4096 px.");
   }
