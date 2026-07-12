@@ -146,6 +146,7 @@ main {
 
 .field label,
 .field legend { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; padding: 0; }
+.label-row { display: flex; justify-content: space-between; gap: 8px; }
 
 .field output { font-variant-numeric: tabular-nums; color: var(--accent); }
 
@@ -352,10 +353,6 @@ details.advanced[open] { display: grid; gap: 10px; }
 .zoom-controls { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--r-sm); overflow: hidden; }
 .zoom-controls .toggle { min-width: 40px; padding: 0 10px; }
 .zoom-level { font-size: 12px; min-width: 56px; }
-
-/* result img has no src until the first trace lands; hide it rather than
-   show the broken-image icon behind the tracing veil */
-#result-view:not([src]) { display: none; }
 
 .tracing-veil {
   position: absolute;

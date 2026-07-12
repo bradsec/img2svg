@@ -126,17 +126,17 @@
         </div>
 
         <div class="field">
-          <label for="colors" title="Maximum colors in the output. Fewer colors gives simpler, cleaner, smaller SVGs">Colors <output id="colors-out" for="colors">All</output></label>
+          <div class="label-row"><label for="colors" title="Maximum colors in the output. Fewer colors gives simpler, cleaner, smaller SVGs">Colors</label> <output id="colors-out" for="colors">All</output></div>
           <input type="range" id="colors" min="2" max="256" step="1" value="256">
         </div>
 
         <div class="field">
-          <label for="speckle" title="Drops traced specks smaller than this many pixels. Raise to remove noise and dust">Speckle filter <output id="speckle-out" for="speckle">8</output></label>
+          <div class="label-row"><label for="speckle" title="Drops traced specks smaller than this many pixels. Raise to remove noise and dust">Speckle filter</label> <output id="speckle-out" for="speckle">8</output></div>
           <input type="range" id="speckle" min="0" max="32" step="1" value="8">
         </div>
 
         <div class="field">
-          <label for="layer-diff" title="Minimum color difference between stacked layers. Raise to merge similar shades into one shape">Layer difference <output id="layer-diff-out" for="layer-diff">16</output></label>
+          <div class="label-row"><label for="layer-diff" title="Minimum color difference between stacked layers. Raise to merge similar shades into one shape">Layer difference</label> <output id="layer-diff-out" for="layer-diff">16</output></div>
           <input type="range" id="layer-diff" min="0" max="128" step="1" value="16">
         </div>
 
@@ -167,7 +167,7 @@
         </fieldset>
 
         <div class="field">
-          <label for="corner-threshold" title="Angles smoother than this many degrees trace as curves. Lower keeps text and logo corners sharp; raise for flowing curves">Corner rounding <output id="corner-threshold-out" for="corner-threshold">60</output></label>
+          <div class="label-row"><label for="corner-threshold" title="Angles smoother than this many degrees trace as curves. Lower keeps text and logo corners sharp; raise for flowing curves">Corner rounding</label> <output id="corner-threshold-out" for="corner-threshold">60</output></div>
           <input type="range" id="corner-threshold" min="0" max="120" step="1" value="60">
         </div>
 
@@ -182,15 +182,15 @@
         <details class="field advanced">
           <summary title="Tracer internals: path precision and curve fitting">Advanced tracing</summary>
           <div class="subfield">
-            <label for="path-precision" title="Decimal places in path coordinates. 1-2 for small web files; 3-4 for print and fabrication">Path precision <output id="path-precision-out" for="path-precision">3</output></label>
+            <div class="label-row"><label for="path-precision" title="Decimal places in path coordinates. 1-2 for small web files; 3-4 for print and fabrication">Path precision</label> <output id="path-precision-out" for="path-precision">3</output></div>
             <input type="range" id="path-precision" min="1" max="4" step="1" value="3">
           </div>
           <div class="subfield">
-            <label for="length-threshold" title="Curves subdivide until segments are shorter than this. Lower keeps more detail; higher simplifies">Segment length <output id="length-threshold-out" for="length-threshold">4</output></label>
+            <div class="label-row"><label for="length-threshold" title="Curves subdivide until segments are shorter than this. Lower keeps more detail; higher simplifies">Segment length</label> <output id="length-threshold-out" for="length-threshold">4</output></div>
             <input type="range" id="length-threshold" min="3.5" max="10" step="0.5" value="4">
           </div>
           <div class="subfield">
-            <label for="splice-threshold" title="Angle change needed to split a spline. Lower traces more faithful curves; higher simplifies">Spline splitting <output id="splice-threshold-out" for="splice-threshold">45</output></label>
+            <div class="label-row"><label for="splice-threshold" title="Angle change needed to split a spline. Lower traces more faithful curves; higher simplifies">Spline splitting</label> <output id="splice-threshold-out" for="splice-threshold">45</output></div>
             <input type="range" id="splice-threshold" min="10" max="90" step="5" value="45">
           </div>
         </details>
@@ -198,7 +198,7 @@
         <div class="field">
           <label class="choice"><input type="checkbox" id="stencil"> <span title="Black and white stencil trace: dark areas become black shapes, everything else drops out. Best for laser cutting, stamps, and silhouettes">Stencil (black &amp; white)</span></label>
           <div class="subfield" id="stencil-threshold-field" hidden>
-            <label for="stencil-threshold" title="Brightness cut-off: pixels darker than this become black shapes. Lower keeps only the darkest areas; raise to pick up midtones">Stencil threshold <output id="stencil-threshold-out" for="stencil-threshold">128</output></label>
+            <div class="label-row"><label for="stencil-threshold" title="Brightness cut-off: pixels darker than this become black shapes. Lower keeps only the darkest areas; raise to pick up midtones">Stencil threshold</label> <output id="stencil-threshold-out" for="stencil-threshold">128</output></div>
             <input type="range" id="stencil-threshold" min="1" max="254" step="1" value="128">
           </div>
           <label class="choice"><input type="checkbox" id="grayscale"> <span title="Convert to shades of gray before tracing">Grayscale</span></label>
@@ -229,15 +229,15 @@
             </div>
           </div>
           <div class="subfield" id="fuzz-field" hidden>
-            <label for="fuzz" title="How closely pixels must match the removed color. 0 is exact; raise for JPEG noise or gradients">Match tolerance <output id="fuzz-out" for="fuzz">16</output></label>
+            <div class="label-row"><label for="fuzz" title="How closely pixels must match the removed color. 0 is exact; raise for JPEG noise or gradients">Match tolerance</label> <output id="fuzz-out" for="fuzz">16</output></div>
             <input type="range" id="fuzz" min="0" max="255" step="1" value="16">
           </div>
           <div class="subfield" id="edge-trim-field" hidden>
-            <label for="edge-trim" title="Peels this many pixels off the cutout boundary to remove leftover fringe. Thin details shrink by the same amount">Edge trim <output id="edge-trim-out" for="edge-trim">0</output></label>
+            <div class="label-row"><label for="edge-trim" title="Peels this many pixels off the cutout boundary to remove leftover fringe. Thin details shrink by the same amount">Edge trim</label> <output id="edge-trim-out" for="edge-trim">0</output></div>
             <input type="range" id="edge-trim" min="0" max="16" step="1" value="0">
           </div>
           <div class="subfield" id="defringe-field" hidden>
-            <label for="defringe" title="Repaints this many pixels of the cutout boundary with interior colors to hide leftover fringe. Keeps thin details at full size">Defringe <output id="defringe-out" for="defringe">0</output></label>
+            <div class="label-row"><label for="defringe" title="Repaints this many pixels of the cutout boundary with interior colors to hide leftover fringe. Keeps thin details at full size">Defringe</label> <output id="defringe-out" for="defringe">0</output></div>
             <input type="range" id="defringe" min="0" max="8" step="1" value="0">
           </div>
           </div>
@@ -254,7 +254,7 @@
             </select>
           </div>
           <div class="subfield" id="physical-size-field" hidden>
-            <label for="physical-width" title="Exported width; height follows the image aspect ratio">Width <output id="physical-height-out" for="physical-width"></output></label>
+            <div class="label-row"><label for="physical-width" title="Exported width; height follows the image aspect ratio">Width</label> <output id="physical-height-out" for="physical-width"></output></div>
             <div class="color-row">
               <input type="number" id="physical-width" min="1" step="any" value="100" inputmode="decimal">
               <select id="physical-unit" aria-label="Physical unit">
@@ -286,8 +286,8 @@
 
         <div id="preview" class="preview checkerboard" tabindex="0" aria-label="Conversion preview. Pinch, scroll, or use plus and minus to zoom; drag to pan.">
           <div id="pan-stage" class="pan-stage">
-            <img id="result-view" alt="Traced SVG result" draggable="false">
-            <img id="source-view" alt="Source image" draggable="false" hidden>
+            <img id="result-view" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" alt="Traced SVG result" draggable="false">
+            <img id="source-view" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" alt="Source image" draggable="false" hidden>
           </div>
           <div id="tracing-veil" class="tracing-veil" hidden>
             <p><span id="veil-stage">Tracing…</span> <span id="veil-elapsed" class="veil-elapsed"></span></p>
@@ -295,7 +295,7 @@
         </div>
 
         <div class="actions">
-          <dl class="stats" aria-label="Result statistics">
+          <dl class="stats">
             <div><dt>Paths</dt><dd id="stat-paths">–</dd></div>
             <div><dt>Size</dt><dd id="stat-size">–</dd></div>
             <div><dt>Time</dt><dd id="stat-time">–</dd></div>
@@ -305,7 +305,7 @@
             <button type="button" id="download-png" class="button button-secondary" disabled title="Render the traced result to a PNG at the trace resolution">Download PNG</button>
             <button type="button" id="download-pdf" class="button button-secondary" disabled title="Vector PDF for print shops and design handoff; uses the physical size when set">Download PDF</button>
             <button type="button" id="download-dxf" class="button button-secondary" disabled title="DXF geometry for CAD, CNC, and cutters; one closed polyline per shape, one layer per color; mm units when a physical size is set">Download DXF</button>
-            <a id="download" class="button button-primary" aria-disabled="true" download>Download SVG</a>
+            <a id="download" class="button button-primary" href="data:," aria-disabled="true" download>Download SVG</a>
           </div>
         </div>
       </div>
