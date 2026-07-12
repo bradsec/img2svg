@@ -160,8 +160,7 @@ main {
 }
 
 .button-row { display: flex; gap: 8px; align-items: center; }
-.button-row-label { font-size: 13px; font-weight: 600; margin-right: auto; }
-.icon-button { min-height: 32px; min-width: 44px; padding: 0 10px; }
+.icon-button { min-height: 32px; min-width: 44px; padding: 0 10px; flex: 1; }
 
 .subfield { display: grid; gap: 4px; }
 .color-row { display: flex; gap: 8px; align-items: stretch; }
