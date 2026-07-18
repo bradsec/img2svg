@@ -36,7 +36,7 @@ Convert raster images to clean, scalable SVG vectors entirely in your browser. [
 - Settings persist across visits and image replacements (flat-image detection still tunes colors per image); one-click Reset settings
 - Works offline after the first visit (service worker, everything stays local)
 - Zoomable preview: pinch, scroll wheel, buttons, Fit, or Actual size (1:1); drag to pan
-- Vector eraser with a zoom-aware circular cursor, adjustable diameter, `[` and `]` size shortcuts, undo/redo, and Restore Original. Cleanup masks are included in SVG and PNG exports.
+- Vector eraser that works across the full preview, including strokes started outside an image edge, with a zoom-aware circular cursor, adjustable diameter, `[` and `]` size shortcuts, undo/redo, and Restore Original. Cleanup masks are included in SVG and PNG exports.
 - Photoshop-style rectangular and elliptical marquees plus a point-to-point polygonal lasso. Use `M`, `Shift+M`, or `L`, hold Shift to constrain proportions, hold Alt/Option to draw from center, then press Delete/Backspace to remove the selected area.
 - Rotate the loaded image in 90 degree steps
 - Trace size capped at 2048 px on the longest side: small images upscale for smoother curves, large photos downscale proportionally (the status line reports the applied scale). Opt-in Ultra mode raises the cap to 4096 px for the cleanest fabrication exports (slower, high memory)

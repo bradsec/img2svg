@@ -1514,7 +1514,6 @@ function eraserPoint(event) {
   if (!rect.width || !rect.height) return null;
   const x = (event.clientX - rect.left) / rect.width;
   const y = (event.clientY - rect.top) / rect.height;
-  if (x < 0 || x > 1 || y < 0 || y > 1) return null;
   return { x, y, rect };
 }
 
@@ -1558,10 +1557,10 @@ els.preview.addEventListener("pointermove", (event) => {
 
 els.preview.addEventListener("pointerdown", (event) => {
   if (!state.erasing || event.button !== 0) return;
-  const point = eraserPoint(event);
-  if (!point) return;
   event.preventDefault();
   event.stopImmediatePropagation();
+  const point = eraserPoint(event);
+  if (!point) return;
   const box = svgViewBox(state.svgRaw || "");
   if (!box) return;
   state.eraseRedo = [];
@@ -1687,7 +1686,7 @@ function pinchState() {
 }
 
 els.preview.addEventListener("pointerdown", (e) => {
-  if (state.picking || e.button !== 0) return;
+  if (state.picking || state.erasing || e.button !== 0) return;
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size === 1) {
     gesture = { x: e.clientX, y: e.clientY };
