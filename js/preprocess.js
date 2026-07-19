@@ -1243,6 +1243,17 @@ export function finalizeSvg(svgText, width, height) {
   );
 }
 
+/**
+ * True when a worker/module failure message indicates a stale or
+ * mismatched cached module (deploy caught mid-propagation, service
+ * worker pinned the bad copy) rather than a tracing error.
+ */
+export function isStaleModuleError(message) {
+  return /importing binding|does not provide an export|SyntaxError|import.* module/i.test(
+    String(message || ""),
+  );
+}
+
 /** Count path elements in an SVG string. */
 export function countPaths(svgText) {
   return (svgText.match(/<path\b/g) || []).length;

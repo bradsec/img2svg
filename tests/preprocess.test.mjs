@@ -18,6 +18,7 @@ import {
   finalizeSvg,
   fitTraceScale,
   groupSvgFills,
+  isStaleModuleError,
   MAX_TRACE_SIDE,
   knockOutColor,
   medianFilter,
@@ -907,4 +908,13 @@ test("applyExportOptions minify also compresses path data", () => {
   const out = applyExportOptions(svg, { minify: true });
   assert.doesNotMatch(out, /<\?xml|transform=/);
   assert.match(out, /d="M1 1h5v5z"/);
+});
+
+test("isStaleModuleError matches module load failures only", () => {
+  assert.equal(isStaleModuleError("Importing binding name 'straightenPaths' is not found."), true);
+  assert.equal(isStaleModuleError("The requested module './preprocess.js?v=40' does not provide an export named 'straightenPaths'"), true);
+  assert.equal(isStaleModuleError("SyntaxError: Unexpected token '<'"), true);
+  assert.equal(isStaleModuleError("Image is too large to trace at 4x"), false);
+  assert.equal(isStaleModuleError("Conversion failed."), false);
+  assert.equal(isStaleModuleError(""), false);
 });

@@ -1,5 +1,5 @@
 // UI wiring: state, controls, preview, download.
-import { capBitmap, decodeImage, invertBitmap, rasterize, rotateBitmap, Tracer } from "./pipeline.js?v=40";
+import { capBitmap, decodeImage, invertBitmap, rasterize, rotateBitmap, Tracer } from "./pipeline.js?v=41";
 import { parseSvgPaths, toDxf, toPdf } from "./vectorexport.js?v=39";
 import { applyEraserMask, snapPointToAngle, svgViewBox } from "./eraser.js?v=3";
 import {
@@ -9,13 +9,14 @@ import {
   DEFAULTS,
   EXPORT_PROFILES,
   fitTraceScale,
+  isStaleModuleError,
   MAX_TRACE_SIDE,
   MAX_TRACE_SIDE_ULTRA,
   parseHexColor,
   PRESETS,
   sanitizeSettings,
   toHexColor,
-} from "./preprocess.js?v=40";
+} from "./preprocess.js?v=41";
 
 const $ = (id) => document.getElementById(id);
 const EMPTY_IMAGE_SRC = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
@@ -201,7 +202,7 @@ function formatDimensionsFromInches(width, height) {
   return `${displayWidth.toFixed(digits)}×${displayHeight.toFixed(digits)} ${unit}`;
 }
 
-const tracer = new Tracer(new URL("./worker.js?v=40", import.meta.url));
+const tracer = new Tracer(new URL("./worker.js?v=41", import.meta.url));
 
 function currentSettings() {
   return {
@@ -619,6 +620,7 @@ async function retrace() {
     setBusy(false);
   } catch (err) {
     setBusy(false);
+    if (await recoverFromStaleCache(err.message)) return;
     setResultActions(false);
     els.status.textContent = "";
     showError(err.message || "Conversion failed.");
@@ -628,6 +630,33 @@ async function retrace() {
 function scheduleRetrace() {
   clearTimeout(state.debounce);
   state.debounce = setTimeout(retrace, 350);
+}
+
+/**
+ * A worker that cannot even load its modules means the service worker
+ * cached mismatched copies: a deploy caught mid-propagation can pin an
+ * old file body under a new ?v= URL, and cache-first then serves it
+ * forever. Purge every cache and service worker, then reload once
+ * (sessionStorage guards against a reload loop) to refetch clean files.
+ */
+async function recoverFromStaleCache(message) {
+  if (!isStaleModuleError(message)) return false;
+  const marker = "rastertrace-cache-recovered";
+  try {
+    if (sessionStorage.getItem(marker)) return false;
+    sessionStorage.setItem(marker, "1");
+  } catch {
+    return false; // no sessionStorage: cannot guard the reload loop
+  }
+  try {
+    for (const key of await caches.keys()) await caches.delete(key);
+    const registrations = (await navigator.serviceWorker?.getRegistrations?.()) ?? [];
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+  } catch {
+    // caches API unavailable: the reload alone may still fetch fresh copies
+  }
+  location.reload();
+  return true;
 }
 
 /**
