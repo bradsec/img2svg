@@ -11,7 +11,7 @@ import {
   PRESETS,
 } from "./preprocess.js?v=41";
 import { $, els, hooks, preferences, showError, state } from "./context.js?v=1";
-import { refreshExport, setResultActions } from "./exporters.js?v=1";
+import { refreshExport, setResultActions } from "./exporters.js?v=2";
 import { clearSelection, setEraser, setSelectionTool, setView } from "./cleanup-tools.js?v=1";
 import {
   applyExportProfile,

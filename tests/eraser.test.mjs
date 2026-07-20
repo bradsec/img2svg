@@ -20,6 +20,8 @@ test("applyEraserMask adds normalized round strokes and wraps artwork", () => {
     points: [{ x: 0.25, y: 0.5 }, { x: 0.75, y: 0.5 }],
   }]);
   assert.match(result, /<mask id="rastertrace-eraser-mask"/);
+  assert.match(result, /mask-type="luminance"/);
+  assert.match(result, /color-interpolation="sRGB"/);
   assert.match(result, /stroke-width="10"/);
   assert.match(result, /d="M50 50 L150 50"/);
   assert.match(result, /<g mask="url\(#rastertrace-eraser-mask\)"><path/);

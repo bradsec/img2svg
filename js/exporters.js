@@ -1,7 +1,7 @@
 // Export pipeline and save handlers: applies export post-processing to
 // the traced SVG, drives the result stats and action buttons, and saves
 // SVG/PNG/PDF/DXF through the File System Access API or a download.
-import { applyEraserMask } from "./eraser.js?v=3";
+import { applyEraserMask } from "./eraser.js?v=4";
 import { applyExportOptions, countPaths } from "./preprocess.js?v=41";
 import { parseSvgPaths, toDxf, toPdf } from "./vectorexport.js?v=39";
 import { els, preferences, showError, state } from "./context.js?v=1";
@@ -93,9 +93,11 @@ export function refreshExport() {
 }
 
 els.copySvg.addEventListener("click", async () => {
-  if (!state.svg) return;
+  if (!state.svgRaw) return;
   try {
-    await navigator.clipboard.writeText(state.svg);
+    refreshExport();
+    const svg = state.svg;
+    await navigator.clipboard.writeText(svg);
     els.status.textContent = "SVG copied to clipboard.";
   } catch {
     els.status.textContent = "Clipboard unavailable. Use Save As instead.";
@@ -157,10 +159,13 @@ function saveStatus(format, result, detail = "") {
 }
 
 els.download.addEventListener("click", async () => {
-  if (!state.svg || els.download.disabled) return;
+  if (!state.svgRaw || els.download.disabled) return;
   try {
     const fileHandle = await chooseSaveFile("svg", "image/svg+xml");
-    const result = await saveBlob(new Blob([state.svg], { type: "image/svg+xml" }), "svg", fileHandle);
+    if (fileHandle === undefined) return;
+    refreshExport();
+    const svg = state.svg;
+    const result = await saveBlob(new Blob([svg], { type: "image/svg+xml" }), "svg", fileHandle);
     if (!result.cancelled) els.status.textContent = saveStatus("SVG", result);
   } catch (err) {
     showError(err.message || "SVG export failed.");
@@ -170,15 +175,19 @@ els.download.addEventListener("click", async () => {
 // PNG render at the trace resolution (viewBox), not the display size:
 // engraving and upload tools that reject SVG get the full detail.
 els.downloadPng.addEventListener("click", async () => {
-  if (!state.svg || els.downloadPng.disabled) return;
+  if (!state.svgRaw || els.downloadPng.disabled) return;
+  let renderUrl = null;
   try {
     const fileHandle = await chooseSaveFile("png", "image/png");
     if (fileHandle === undefined) return;
+    refreshExport();
+    const svg = state.svg;
     els.downloadPng.disabled = true;
     const img = new Image();
-    img.src = state.downloadUrl;
+    renderUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+    img.src = renderUrl;
     await img.decode();
-    const m = state.svg.match(/viewBox="0 0 (\d+) (\d+)"/);
+    const m = svg.match(/viewBox="0 0 (\d+) (\d+)"/);
     const width = m ? Number(m[1]) : img.naturalWidth;
     const height = m ? Number(m[2]) : img.naturalHeight;
     const canvas = document.createElement("canvas");
@@ -191,6 +200,7 @@ els.downloadPng.addEventListener("click", async () => {
   } catch (err) {
     showError(err.message || "PNG export failed.");
   } finally {
+    if (renderUrl) URL.revokeObjectURL(renderUrl);
     els.downloadPng.disabled = false;
   }
 });
@@ -207,7 +217,7 @@ function physicalWidthIn(unitsPerMm, unitsPerInch) {
 }
 
 els.downloadPdf.addEventListener("click", async () => {
-  if (!state.svgRaw || els.downloadPdf.disabled) return;
+  if (!state.svgRaw || els.downloadPdf.disabled || state.eraseStrokes.length) return;
   try {
     const parsed = parseSvgPaths(state.svgRaw);
     // Page size in points: the physical size when set, else source
@@ -216,6 +226,7 @@ els.downloadPdf.addEventListener("click", async () => {
     const heightPt = widthPt * (state.sourceHeight / state.sourceWidth);
     const pdf = toPdf(parsed, { pageWidth: widthPt, pageHeight: heightPt });
     const fileHandle = await chooseSaveFile("pdf", "application/pdf");
+    if (fileHandle === undefined || state.eraseStrokes.length) return;
     const result = await saveBlob(new Blob([pdf], { type: "application/pdf" }), "pdf", fileHandle);
     if (!result.cancelled) {
       els.status.textContent = saveStatus("PDF", result, ` at ${formatDimensionsFromInches(widthPt / 72, heightPt / 72)}`);
@@ -226,13 +237,14 @@ els.downloadPdf.addEventListener("click", async () => {
 });
 
 els.downloadDxf.addEventListener("click", async () => {
-  if (!state.svgRaw || els.downloadDxf.disabled) return;
+  if (!state.svgRaw || els.downloadDxf.disabled || state.eraseStrokes.length) return;
   try {
     const parsed = parseSvgPaths(state.svgRaw);
     // DXF units: mm when a physical size is set, else source pixels.
     const widthUnits = physicalWidthIn(1, 25.4) ?? state.sourceWidth;
     const dxf = toDxf(parsed, { scale: widthUnits / parsed.width });
     const fileHandle = await chooseSaveFile("dxf", "image/vnd.dxf");
+    if (fileHandle === undefined || state.eraseStrokes.length) return;
     const result = await saveBlob(new Blob([dxf], { type: "image/vnd.dxf" }), "dxf", fileHandle);
     if (!result.cancelled) {
       const detail = els.exportSize.value === "physical"
