@@ -1,5 +1,5 @@
 /* RasterTrace - compact desktop-tool UI shared with the image app family.
-   Neutral dark ramp, one emerald accent, one radius scale. */
+   Neutral dark ramp, one Illustrator-orange accent, one radius scale. */
 :root {
   --bg: #17191d;
   --surface-1: #1e2125;
@@ -11,11 +11,11 @@
   --text: #f0f2f4;
   --text-dim: #b5bac2;
   --text-faint: #9aa1ab;
-  --accent: #3fba7f;
-  --accent-hover: #69d0a0;
-  --accent-press: #27835d;
-  --accent-soft: rgb(63 186 127 / 18%);
-  --accent-ink: #071b12;
+  --accent: #ff9a00;
+  --accent-hover: #ffb13b;
+  --accent-press: #d86f00;
+  --accent-soft: rgb(255 154 0 / 18%);
+  --accent-ink: #17120a;
   --error: #e5675b;
   --success: #57b98a;
   --r: 4px;
@@ -73,7 +73,7 @@ body {
 .brand { display: inline-flex; align-items: center; gap: 7px; min-width: 0; margin: 0 6px 0 0;
   color: var(--text-dim); font-size: 12px; font-weight: 600; }
 .brand-mark { display: grid; width: 23px; height: 23px; place-items: center; border: 1px solid var(--accent-hover);
-  border-radius: var(--r); color: #8ae0b8; font-size: 11px; font-weight: 650; letter-spacing: -.04em; }
+  border-radius: var(--r); color: var(--accent-hover); font-size: 11px; font-weight: 650; letter-spacing: -.04em; }
 .app-menu { position: relative; height: 100%; }
 .app-menu summary { display: flex; height: 100%; align-items: center; padding: 0 8px; border-radius: var(--r);
   color: var(--text-dim); font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; list-style: none;
@@ -92,9 +92,9 @@ body {
   justify-content: space-between; gap: 24px; padding: 5px 8px; border: 0; border-radius: var(--r);
   background: transparent; color: inherit; font: inherit; text-align: left; text-decoration: none;
   white-space: nowrap; cursor: pointer; }
-.menu-popover button:hover, .menu-popover > a:hover { background: var(--accent-press); color: #f3fcf7; }
+.menu-popover button:hover, .menu-popover > a:hover { background: var(--accent); color: var(--accent-ink); }
 .menu-popover button span { min-width: 38px; color: var(--text-faint); font-size: 11px; text-align: right; }
-.menu-popover button:hover span { color: #d9f5e7; }
+.menu-popover button:hover span { color: var(--accent-ink); }
 .menu-popover button:disabled { opacity: .42; cursor: default; }
 .menu-popover button:disabled:hover { background: transparent; color: inherit; }
 .menu-popover hr { width: 100%; margin: 4px 0; border: 0; border-top: 1px solid var(--border); }
@@ -117,9 +117,9 @@ body {
 .header-action:hover { border-color: var(--border-strong); background: #343941; color: var(--text); }
 .header-action:active, .primary-action:active { transform: translateY(1px); }
 .header-action:disabled { opacity: .42; cursor: default; }
-.primary-action { padding-inline: 10px; border-color: var(--accent); background: var(--accent-press);
-  color: #f3fcf7; font-weight: 650; }
-.primary-action:hover { border-color: var(--accent-hover); background: #31996c; }
+.primary-action { padding-inline: 10px; border-color: var(--accent); background: var(--accent);
+  color: var(--accent-ink); font-weight: 650; }
+.primary-action:hover { border-color: var(--accent-hover); background: var(--accent-hover); }
 .primary-action:disabled { opacity: .42; cursor: default; }
 
 /* ---------- Main ---------- */
