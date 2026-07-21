@@ -2,6 +2,14 @@
 // The input is our own finalized SVG, which keeps a very regular shape:
 // uppercase absolute M/L/C/Z path data, per-path fill and translate().
 
+/**
+ * @typedef {{ x: number, y: number }} VecPoint
+ * @typedef {{ kind: "line", to: VecPoint } | { kind: "cubic", c1: VecPoint, c2: VecPoint, to: VecPoint }} VecSegment
+ * @typedef {{ start: VecPoint, segments: VecSegment[], closed: boolean }} VecSubpath
+ * @typedef {{ fill: string, subpaths: VecSubpath[] }} VecPath
+ * @typedef {{ width: number, height: number, paths: VecPath[] }} ParsedSvg
+ */
+
 /** Trim a number to a compact decimal string (max 4 places). */
 function fmt(n) {
   return String(Number(n.toFixed(4)));
@@ -12,6 +20,9 @@ function fmt(n) {
  * { fill, subpaths: [{ start, segments, closed }] } and each segment is
  * { kind: "line", to } or { kind: "cubic", c1, c2, to }. Coordinates are
  * in viewBox space with the per-path translate applied.
+ *
+ * @param {string} svgText
+ * @returns {ParsedSvg}
  */
 export function parseSvgPaths(svgText) {
   const vb = svgText.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
@@ -122,6 +133,7 @@ export function flattenCubic(p0, c1, c2, p1, tol, depth = 0) {
 function aciColor(hex) {
   const n = parseInt(hex.slice(1), 16);
   const rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  /** @type {[number, number[]][]} */
   const palette = [
     [1, [255, 0, 0]],
     [2, [255, 255, 0]],
@@ -153,6 +165,9 @@ const FLATTEN_TOL = 0.2;
  * Write a minimal DXF R12 document: one closed POLYLINE per subpath,
  * one layer per fill color, y axis flipped to DXF's y-up convention.
  * `scale` converts viewBox pixels to output units (e.g. mm).
+ *
+ * @param {ParsedSvg} parsed
+ * @param {{ scale?: number }} [options]
  */
 export function toDxf(parsed, { scale = 1 } = {}) {
   const { height, paths } = parsed;
@@ -201,6 +216,9 @@ export function toDxf(parsed, { scale = 1 } = {}) {
  * Write a single-page vector PDF. Curves stay curves (SVG cubics map to
  * the PDF `c` operator 1:1); holes survive through nonzero fill. Page
  * size in points; defaults to the pixel dimensions at 96 dpi.
+ *
+ * @param {ParsedSvg} parsed
+ * @param {{ pageWidth?: number, pageHeight?: number }} [options]
  */
 export function toPdf(parsed, { pageWidth, pageHeight } = {}) {
   const { width, height, paths } = parsed;

@@ -14,7 +14,10 @@ export function setResultActions(enabled) {
   els.downloadPdf.disabled = !enabled;
   els.downloadDxf.disabled = !enabled;
   els.download.disabled = !enabled;
-  for (const button of document.querySelectorAll('.menu-popover [data-result-action], [data-action="save-svg"]')) {
+  const resultActionButtons = /** @type {NodeListOf<HTMLButtonElement>} */ (
+    document.querySelectorAll('.menu-popover [data-result-action], [data-action="save-svg"]')
+  );
+  for (const button of resultActionButtons) {
     button.disabled = !enabled;
   }
   els.eraserTool.disabled = !enabled;
@@ -35,7 +38,10 @@ export function setResultActions(enabled) {
     els.downloadPdf.title = "Save a vector PDF at the selected physical size, choosing its name and location";
     els.downloadDxf.title = "Save DXF geometry for CAD or fabrication, choosing its name and location";
   }
-  for (const button of document.querySelectorAll('[data-action="download-pdf"], [data-action="download-dxf"]')) {
+  const pdfDxfButtons = /** @type {NodeListOf<HTMLButtonElement>} */ (
+    document.querySelectorAll('[data-action="download-pdf"], [data-action="download-dxf"]')
+  );
+  for (const button of pdfDxfButtons) {
     button.disabled = !enabled || erased;
   }
 }

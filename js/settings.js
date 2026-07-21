@@ -11,6 +11,9 @@ import { els, preferences } from "./context.js?v=3";
 import { refreshExport, updatePhysicalHeightOut } from "./exporters.js?v=4";
 import { setEyedropper } from "./cleanup-tools.js?v=4";
 
+/** @returns {HTMLInputElement} */
+const radioEl = (selector) => /** @type {HTMLInputElement} */ (document.querySelector(selector));
+
 const PREFERENCES_KEY = "rastertrace-preferences";
 const PHYSICAL_UNITS = new Set(["in", "cm", "mm"]);
 const MEASUREMENT_UNITS = new Set(["px", "in", "cm", "mm"]);
@@ -70,13 +73,13 @@ export function currentSettings() {
     upscale: els.upscale.value === "auto" || els.upscale.value === "ultra"
       ? els.upscale.value
       : Number(els.upscale.value),
-    mode: document.querySelector('input[name="mode"]:checked').value,
+    mode: radioEl('input[name="mode"]:checked').value,
     grayscale: els.grayscale.checked,
     denoise: els.denoise.checked,
     crisp: els.crisp.checked,
     stencil: els.stencil.checked,
     stencilThreshold: Number(els.stencilThreshold.value),
-    stencilInk: document.querySelector('input[name="stencil-ink"]:checked').value,
+    stencilInk: radioEl('input[name="stencil-ink"]:checked').value,
     pathPrecision: Number(els.pathPrecision.value),
     lengthThreshold: Number(els.lengthThreshold.value),
     spliceThreshold: Number(els.spliceThreshold.value),
@@ -141,11 +144,11 @@ export function applyExportProfile(name) {
   els.layerDiff.value = String(profile.layerDiff);
   els.cornerThreshold.value = String(profile.cornerThreshold);
   els.straighten.value = String(profile.straighten);
-  document.querySelector(`input[name="mode"][value="${profile.mode}"]`).checked = true;
+  radioEl(`input[name="mode"][value="${profile.mode}"]`).checked = true;
   els.hierarchical.value = profile.hierarchical;
   els.upscale.value = String(profile.upscale);
   els.stencil.checked = profile.stencil;
-  document.querySelector(`input[name="stencil-ink"][value="${profile.stencilInk || "black"}"]`).checked = true;
+  radioEl(`input[name="stencil-ink"][value="${profile.stencilInk || "black"}"]`).checked = true;
   els.pathPrecision.value = String(profile.pathPrecision);
   if (profile.spliceThreshold) els.spliceThreshold.value = String(profile.spliceThreshold);
   els.minify.checked = profile.minify;
@@ -177,13 +180,13 @@ function snapshotSettings() {
     upscale: els.upscale.value === "auto" || els.upscale.value === "ultra"
       ? els.upscale.value
       : Number(els.upscale.value),
-    mode: document.querySelector('input[name="mode"]:checked').value,
+    mode: radioEl('input[name="mode"]:checked').value,
     grayscale: els.grayscale.checked,
     denoise: els.denoise.checked,
     crisp: els.crisp.checked,
     stencil: els.stencil.checked,
     stencilThreshold: Number(els.stencilThreshold.value),
-    stencilInk: document.querySelector('input[name="stencil-ink"]:checked').value,
+    stencilInk: radioEl('input[name="stencil-ink"]:checked').value,
     transparent: els.transparent.value,
     knockoutColor: els.knockoutColor.value,
     fuzz: Number(els.fuzz.value),
@@ -236,7 +239,7 @@ export function restoreSettings() {
   set(els.hierarchical, "hierarchical");
   set(els.upscale, "upscale");
   if (saved.mode) {
-    document.querySelector(`input[name="mode"][value="${saved.mode}"]`).checked = true;
+    radioEl(`input[name="mode"][value="${saved.mode}"]`).checked = true;
   }
   check(els.grayscale, "grayscale");
   check(els.denoise, "denoise");
@@ -244,7 +247,7 @@ export function restoreSettings() {
   check(els.stencil, "stencil");
   set(els.stencilThreshold, "stencilThreshold");
   if (saved.stencilInk) {
-    document.querySelector(`input[name="stencil-ink"][value="${saved.stencilInk}"]`).checked = true;
+    radioEl(`input[name="stencil-ink"][value="${saved.stencilInk}"]`).checked = true;
   }
   set(els.transparent, "transparent");
   set(els.knockoutColor, "knockoutColor");
@@ -299,7 +302,7 @@ export function resetSettings() {
   els.straighten.value = String(DEFAULTS.straighten);
   els.hierarchical.value = DEFAULTS.hierarchical;
   els.upscale.value = String(DEFAULTS.upscale);
-  document.querySelector(`input[name="mode"][value="${DEFAULTS.mode}"]`).checked = true;
+  radioEl(`input[name="mode"][value="${DEFAULTS.mode}"]`).checked = true;
   els.grayscale.checked = DEFAULTS.grayscale;
   els.denoise.checked = DEFAULTS.denoise;
   els.crisp.checked = DEFAULTS.crisp;
@@ -310,7 +313,7 @@ export function resetSettings() {
   els.defringe.value = String(DEFAULTS.defringe);
   els.stencil.checked = false;
   els.stencilThreshold.value = "128";
-  document.querySelector('input[name="stencil-ink"][value="black"]').checked = true;
+  radioEl('input[name="stencil-ink"][value="black"]').checked = true;
   els.pathPrecision.value = "3";
   els.lengthThreshold.value = "4";
   els.spliceThreshold.value = "45";

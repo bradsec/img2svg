@@ -122,6 +122,9 @@ export const EXPORT_PROFILES = Object.freeze({
  *   width/height to the requested unit, height from the pixel aspect ratio,
  *   keeping the viewBox so the file still scales.
  * - title: insert an escaped <title> as the first child and role="img".
+ *
+ * @param {string} svgText
+ * @param {{ physicalWidth?: number, physicalUnit?: string, title?: string, minify?: boolean }} [options]
  */
 export function applyExportOptions(svgText, { physicalWidth, physicalUnit, title, minify } = {}) {
   let out = svgText;
@@ -435,6 +438,7 @@ function linearLut() {
   return SRGB_LINEAR;
 }
 
+/** @param {number[]} rgb */
 export function srgbToOklab([r, g, b]) {
   const lut = linearLut();
   const lr = lut[r];

@@ -42,7 +42,9 @@ document.addEventListener("keydown", (e) => {
 });
 
 document.addEventListener("keydown", (event) => {
-  const editing = /^(INPUT|SELECT|TEXTAREA)$/.test(event.target.tagName) || event.target.isContentEditable;
+  const target = event.target;
+  const editing = target instanceof HTMLElement
+    && (/^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName) || target.isContentEditable);
   if (editing) return;
   const key = event.key.toLowerCase();
   if (!event.ctrlKey && !event.metaKey && !event.altKey && key === "e" && state.svg) {
@@ -236,7 +238,7 @@ export function renderSelection() {
     edge.setAttribute("fill", "none");
     edge.setAttribute("clip-path", "url(#selection-image-edge-clip)");
     edge.setAttribute("vector-effect", "non-scaling-stroke");
-    const darkEdge = edge.cloneNode();
+    const darkEdge = /** @type {SVGRectElement} */ (edge.cloneNode());
     darkEdge.setAttribute("class", "selection-ants-dark");
     edge.setAttribute("class", "selection-ants-light");
     selectionNodes.unshift(defs);

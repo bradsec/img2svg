@@ -1,6 +1,6 @@
 {
   "name": "rastertrace-webapp",
-  "version": "1.1.47",
+  "version": "1.1.48",
   "private": true,
   "license": "MIT",
   "repository": "github:bradsec/rastertrace",
@@ -8,7 +8,11 @@
   "description": "RasterTrace browser-based raster to SVG converter",
   "scripts": {
     "test": "node --test",
+    "typecheck": "tsc --noEmit",
     "serve": "python3 -m http.server 8137",
     "build:wasm": "cd wasm && wasm-pack build --target web --out-dir ../pkg --release && rm -f ../pkg/.gitignore"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
   }
 }

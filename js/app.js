@@ -284,7 +284,10 @@ for (const [action, target] of Object.entries(menuActionTargets)) {
   document.querySelector(`[data-action="${action}"]`).addEventListener("click", () => target.click());
 }
 
-for (const panel of document.querySelectorAll("details.panel[data-panel-key]")) {
+const panels = /** @type {NodeListOf<HTMLDetailsElement>} */ (
+  document.querySelectorAll("details.panel[data-panel-key]")
+);
+for (const panel of panels) {
   const storageKey = `rastertrace:panel:${panel.dataset.panelKey}`;
   try {
     const stored = localStorage.getItem(storageKey);
@@ -323,7 +326,9 @@ els.preferencesDialog.addEventListener("close", () => {
   els.status.textContent = "Preferences saved.";
 });
 
-const appMenus = [...document.querySelectorAll("details.app-menu")];
+const appMenus = [
+  .../** @type {NodeListOf<HTMLDetailsElement>} */ (document.querySelectorAll("details.app-menu")),
+];
 const closeMenus = (except) => {
   for (const menu of appMenus) if (menu !== except) menu.open = false;
 };
