@@ -1,6 +1,7 @@
 // Web Worker: runs preprocessing + wasm tracing off the main thread.
 import init, { trace } from "../pkg/rastertrace_wasm.js?v=39";
 import {
+  applyStencilInk,
   binarizeAlpha,
   defringeAlpha,
   erodeAlpha,
@@ -13,7 +14,7 @@ import {
   straightenPaths,
   thresholdImage,
   toGrayscale,
-} from "./preprocess.js?v=41";
+} from "./preprocess.js?v=42";
 
 // Explicit versioned URL: the glue's own wasm fetch drops the ?v= query,
 // so a rebuilt binary would otherwise be served from stale browser cache
@@ -108,10 +109,15 @@ self.onmessage = async (event) => {
 
     // Straighten after finalize so the tolerance applies to the same
     // path data every export format consumes.
-    const finalSvg = straightenPaths(
+    const straightened = straightenPaths(
       finalizeSvg(svg, sourceWidth, sourceHeight),
       settings.straighten ?? 0,
     );
+    // White stencil ink is a pure recolor of the finished trace, applied
+    // last so it can never affect path shape or the straighten tolerance.
+    const finalSvg = settings.stencil
+      ? applyStencilInk(straightened, settings.stencilInk ?? "black")
+      : straightened;
     self.postMessage({
       id,
       svg: finalSvg,

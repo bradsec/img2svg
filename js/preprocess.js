@@ -62,6 +62,7 @@ export const DEFAULTS = Object.freeze({
   defringe: 0,
   stencil: false,
   stencilThreshold: 128,
+  stencilInk: "black",
   pathPrecision: 3,
   lengthThreshold: 4,
   spliceThreshold: 45,
@@ -81,7 +82,11 @@ export const PRESETS = Object.freeze({
   32: { colors: 32, speckle: 4, layerDiff: 16 },
   64: { colors: 64, speckle: 4, layerDiff: 12 },
   128: { colors: 128, speckle: 2, layerDiff: 8 },
-  256: { colors: 256, speckle: 8, layerDiff: 16 },
+  // 256 (no quantize/modeFilter pass — see js/worker.js) needs more
+  // cleanup than 128, not less: raw source noise reaches the tracer
+  // untouched, so despeckle/layer merging stay above the 128 entry
+  // instead of continuing to taper off.
+  256: { colors: 256, speckle: 3, layerDiff: 10 },
 });
 
 // Purpose-based export profiles (SVG_EXPORT_RESEARCH.md). Values are
@@ -92,7 +97,11 @@ export const EXPORT_PROFILES = Object.freeze({
   web: { colors: 16, speckle: 10, layerDiff: 24, mode: "spline", cornerThreshold: 60, hierarchical: "stacked", pathPrecision: 1, upscale: 2, straighten: 1, minify: true, stencil: false },
   balanced: { colors: 256, speckle: 8, layerDiff: 16, mode: "spline", cornerThreshold: 60, hierarchical: "stacked", pathPrecision: 2, upscale: 2, straighten: 0.5, minify: false, stencil: false },
   detail: { colors: 64, speckle: 2, layerDiff: 8, mode: "spline", cornerThreshold: 45, hierarchical: "stacked", pathPrecision: 4, spliceThreshold: 30, upscale: "auto", straighten: 0, minify: false, stencil: false },
+  maxDetail: { colors: 128, speckle: 1, layerDiff: 6, mode: "spline", cornerThreshold: 25, hierarchical: "stacked", pathPrecision: 4, spliceThreshold: 20, upscale: "auto", straighten: 0, minify: false, stencil: false },
+  pixelExact: { colors: 64, speckle: 1, layerDiff: 6, mode: "none", cornerThreshold: 60, hierarchical: "stacked", pathPrecision: 4, spliceThreshold: 45, upscale: "auto", straighten: 0, minify: false, stencil: false },
   print: { colors: 8, speckle: 12, layerDiff: 28, mode: "spline", cornerThreshold: 45, hierarchical: "stacked", pathPrecision: 3, upscale: "auto", straighten: 1, minify: false, stencil: false },
+  monoBlack: { colors: 2, speckle: 6, layerDiff: 48, mode: "spline", cornerThreshold: 25, hierarchical: "stacked", pathPrecision: 4, upscale: "auto", straighten: 1, minify: false, stencil: true, stencilInk: "black" },
+  monoWhite: { colors: 2, speckle: 6, layerDiff: 48, mode: "spline", cornerThreshold: 25, hierarchical: "stacked", pathPrecision: 4, upscale: "auto", straighten: 1, minify: false, stencil: true, stencilInk: "white" },
   laser: { colors: 2, speckle: 12, layerDiff: 48, mode: "spline", cornerThreshold: 30, hierarchical: "stacked", pathPrecision: 3, upscale: "auto", straighten: 1.5, minify: false, stencil: true },
 });
 
@@ -319,6 +328,24 @@ export function fillTransparent(img, [r, g, b]) {
   }
 }
 
+/**
+ * Recolor a binary stencil trace for white-ink output: swap the shape
+ * fill to white and add an opaque black backing rect sized to the
+ * trace's viewBox (not the root width/height, which can differ from it
+ * under upscale). Binary stencil traces have exactly one fill value in
+ * the whole document, so a blanket replace is safe. No-op for "black".
+ */
+export function applyStencilInk(svgText, ink) {
+  if (ink !== "white") return svgText;
+  const recolored = svgText.replace(/fill="#000000"/g, 'fill="#ffffff"');
+  const [, w, h] = recolored.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/) || [];
+  if (!w || !h) return recolored;
+  return recolored.replace(
+    /(<svg[^>]*>)/,
+    `$1<rect width="${w}" height="${h}" fill="#000000"/>`,
+  );
+}
+
 // Validators for persisted settings. localStorage is untrusted input:
 // each entry admits one control's value range and nothing else.
 const SETTING_CHECKS = {
@@ -336,6 +363,7 @@ const SETTING_CHECKS = {
   crisp: (v) => typeof v === "boolean",
   stencil: (v) => typeof v === "boolean",
   stencilThreshold: (v) => Number.isFinite(v) && v >= 1 && v <= 254,
+  stencilInk: (v) => v === "black" || v === "white",
   transparent: (v) => ["", "edges", "auto", "custom"].includes(v),
   knockoutColor: (v) => typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v),
   fuzz: (v) => Number.isFinite(v) && v >= 0 && v <= 255,

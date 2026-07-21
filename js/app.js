@@ -1,7 +1,7 @@
 // App core: the trace loop, image loading and transforms, menu and
 // control wiring, and startup. Shared state lives in context.js; tools,
 // settings, export, and zoom/pan live in their own modules.
-import { capBitmap, decodeImage, invertBitmap, rasterize, rotateBitmap, Tracer } from "./pipeline.js?v=41";
+import { capBitmap, decodeImage, invertBitmap, rasterize, rotateBitmap, Tracer } from "./pipeline.js?v=42";
 import {
   analyzeFlatness,
   fitTraceScale,
@@ -9,10 +9,10 @@ import {
   MAX_TRACE_SIDE,
   MAX_TRACE_SIDE_ULTRA,
   PRESETS,
-} from "./preprocess.js?v=41";
-import { $, els, hooks, preferences, showError, state } from "./context.js?v=1";
-import { refreshExport, setResultActions } from "./exporters.js?v=2";
-import { clearSelection, setEraser, setSelectionTool, setView } from "./cleanup-tools.js?v=2";
+} from "./preprocess.js?v=42";
+import { $, els, hooks, preferences, showError, state } from "./context.js?v=2";
+import { refreshExport, setResultActions } from "./exporters.js?v=3";
+import { clearSelection, setEraser, setSelectionTool, setView } from "./cleanup-tools.js?v=3";
 import {
   applyExportProfile,
   applyMeasurementUnit,
@@ -28,12 +28,12 @@ import {
   updateOutputs,
   updateStencilFields,
   updateTransparencyFields,
-} from "./settings.js?v=2";
-import { actualSizeView, resetView } from "./view.js?v=2";
+} from "./settings.js?v=3";
+import { actualSizeView, resetView } from "./view.js?v=3";
 
 const EMPTY_IMAGE_SRC = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
-const tracer = new Tracer(new URL("./worker.js?v=41", import.meta.url));
+const tracer = new Tracer(new URL("./worker.js?v=42", import.meta.url));
 
 let elapsedTimer = 0;
 
@@ -532,6 +532,12 @@ els.stencilThreshold.addEventListener("input", () => {
   updateOutputs();
   scheduleRetrace();
 });
+for (const radio of document.querySelectorAll('input[name="stencil-ink"]')) {
+  radio.addEventListener("change", () => {
+    clearProfile();
+    scheduleRetrace();
+  });
+}
 els.hierarchical.addEventListener("change", () => {
   clearProfile();
   scheduleRetrace();
