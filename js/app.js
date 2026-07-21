@@ -9,7 +9,7 @@ import {
   MAX_TRACE_SIDE,
   MAX_TRACE_SIDE_ULTRA,
   PRESETS,
-} from "./preprocess.js?v=41";
+} from "./preprocess.js?v=42";
 import { $, els, hooks, preferences, showError, state } from "./context.js?v=1";
 import { refreshExport, setResultActions } from "./exporters.js?v=2";
 import { clearSelection, setEraser, setSelectionTool, setView } from "./cleanup-tools.js?v=2";

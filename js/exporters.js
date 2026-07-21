@@ -2,7 +2,7 @@
 // the traced SVG, drives the result stats and action buttons, and saves
 // SVG/PNG/PDF/DXF through the File System Access API or a download.
 import { applyEraserMask } from "./eraser.js?v=4";
-import { applyExportOptions, countPaths } from "./preprocess.js?v=41";
+import { applyExportOptions, countPaths } from "./preprocess.js?v=42";
 import { parseSvgPaths, toDxf, toPdf } from "./vectorexport.js?v=39";
 import { els, preferences, showError, state } from "./context.js?v=1";
 

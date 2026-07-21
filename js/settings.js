@@ -6,7 +6,7 @@ import {
   parseHexColor,
   PRESETS,
   sanitizeSettings,
-} from "./preprocess.js?v=41";
+} from "./preprocess.js?v=42";
 import { els, preferences } from "./context.js?v=1";
 import { refreshExport, updatePhysicalHeightOut } from "./exporters.js?v=2";
 import { setEyedropper } from "./cleanup-tools.js?v=2";

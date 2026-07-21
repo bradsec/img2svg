@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   analyzeFlatness,
   applyExportOptions,
+  applyStencilInk,
   assertRasterBudget,
   DEFAULTS,
   EXPORT_PROFILES,
@@ -334,6 +335,26 @@ test("finalizeSvg groups same-fill paths in vtracer output", () => {
   assert.match(out, /width="10" height="10" viewBox="0 0 20 20"/);
   assert.match(out, /<g fill="#010101">/);
   assert.equal(countPaths(out), 2);
+});
+
+test("applyStencilInk leaves black ink unchanged", () => {
+  const svg = '<svg width="10" height="10" viewBox="0 0 10 10">\n<path d="M0 0" fill="#000000"/>\n</svg>';
+  assert.equal(applyStencilInk(svg, "black"), svg);
+});
+
+test("applyStencilInk recolors to white and backs with black, sized to the viewBox", () => {
+  // width/height (10x10) differ from viewBox (40x40) to catch upscale cases.
+  const svg = '<svg width="10" height="10" viewBox="0 0 40 40">\n<path d="M0 0" fill="#000000"/>\n</svg>';
+  const out = applyStencilInk(svg, "white");
+  assert.match(out, /<svg[^>]*><rect width="40" height="40" fill="#000000"\/>/);
+  assert.match(out, /<path d="M0 0" fill="#ffffff"\/>/);
+  assert.equal(countPaths(out), 1);
+});
+
+test("applyStencilInk recolors grouped fills too", () => {
+  const svg = '<svg width="10" height="10" viewBox="0 0 10 10">\n<g fill="#000000">\n<path d="M0 0"/>\n<path d="M1 1"/>\n</g>\n</svg>';
+  const out = applyStencilInk(svg, "white");
+  assert.match(out, /<g fill="#ffffff">/);
 });
 
 test("applyExportOptions rewrites physical size keeping viewBox", () => {
